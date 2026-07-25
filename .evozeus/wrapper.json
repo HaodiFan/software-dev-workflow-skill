@@ -3,6 +3,7 @@
   "wrapper_version": "v0.3.0",
   "applied_at": "2026-06-27",
   "canonical_repo": "HaodiFan/engineering-everything",
+  "instruction_surface": "skills/using-engineering-everything/SKILL.md",
   "managed_files": [
     "WRAPPER.md",
     "docs/index.md",
