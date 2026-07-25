@@ -2,7 +2,7 @@
 name: engineering-build-verify
 description: Use when implementing, fixing bugs, migrating code, wiring APIs, running validation commands, or closing a build/test loop with minimal scoped changes.
 metadata:
-  version: 0.12.0
+  version: 0.13.0
 ---
 
 # Engineering Build Verify / 构建验证

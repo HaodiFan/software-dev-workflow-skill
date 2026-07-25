@@ -1,0 +1,30 @@
+{
+  "management_mode": "semi_managed",
+  "strictness": "medium",
+  "audit_rule": ".evozeus-wrapper/policies/audit-rule.md",
+  "capture_evidence_regex": [
+    "Skill Feedback Issue",
+    "gh issue create",
+    "created issue",
+    "lesson captured",
+    "经验已上传",
+    "自进化记录"
+  ],
+  "routing": {
+    "target_skill_issue_when": [
+      "domain_rule_missing",
+      "tool_profile_wrong",
+      "business_process_wrong",
+      "deliverable_gate_wrong"
+    ],
+    "wrapper_issue_when": [
+      "feedback_not_captured",
+      "mode_config_missing",
+      "hook_missing",
+      "cannot_route_issue_owner"
+    ],
+    "both_when": [
+      "target_skill_rule_missing_and_wrapper_failed_to_capture"
+    ]
+  }
+}

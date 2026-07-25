@@ -4,9 +4,9 @@
 
 ## 迁移原则
 
-- `.evozeus/wrapper.json` 是 wrapper harness version 的事实源。
+- `.evozeus-wrapper/wrapper.json` 是 wrapper harness version 的事实源。
 - 当前仓库采用 plugin-first 结构；运行时入口在 `skills/*/SKILL.md`，repo root 不保留 `SKILL.md`。
-- wrapper 状态检查由 `.codex-plugin/plugin.json`、`WRAPPER.md`、`docs/index.md` 和 preflight 脚本承载，不写入运行时 Skill 正文。
+- wrapper 状态检查由 `.codex-plugin/plugin.json`、`.evozeus-wrapper/WRAPPER.md`、`.evozeus-wrapper/docs/index.md` 和 preflight 脚本承载，不写入运行时 Skill 正文。
 - wrapper-managed files 可以按迁移方案复制或合并；如果已有本地修改，必须先做 merge review。
 - Skill release version 和 wrapper harness version 是两条版本轴，不能互相覆盖。
 

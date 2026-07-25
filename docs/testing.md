@@ -1,6 +1,6 @@
 # 对内-未审核-Engineering Everything 测试与验证说明
 
-本文档说明当前仓库的本地验证门禁。它不是 release notes；发布前仍以 `CHANGELOG.md` 和对应 release checklist 为准。
+本文档说明当前仓库的本地验证门禁。它不是 release notes；发布前仍以 `.evozeus-wrapper/CHANGELOG.md` 和对应 release checklist 为准。
 
 ## 当前必跑
 
@@ -28,9 +28,9 @@ python3 -m py_compile scripts/*.py
 
 ```bash
 python3 scripts/self_evolve.py doctor --json
-python3 scripts/evozeus_wrapper_preflight.py structure
-python3 scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything
-python3 scripts/evozeus_wrapper_preflight.py version --repo HaodiFan/engineering-everything --current-tag v0.12.0
+python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py structure
+python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything
+python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py version --repo HaodiFan/engineering-everything --current-tag v0.13.0
 ```
 
-`v0.12.0` 是本次 bootloader refactor 的 release tag。发布前必须确认 changelog、版本元数据、验证记录和 GitHub release notes 一致。
+`v0.13.0` 是 plugin-first package 与 CoEvolve harness migration 的 release tag。发布前必须确认 changelog、版本元数据、验证记录和 GitHub release notes 一致。

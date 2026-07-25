@@ -2,7 +2,7 @@
 name: engineering-project-inheritance
 description: Use when taking over an existing repository, auditing an old project, deciding whether to refactor, or planning how to continue work from current code and documents.
 metadata:
-  version: 0.12.0
+  version: 0.13.0
 ---
 
 # Engineering Project Inheritance / 接手已有项目

@@ -1,6 +1,6 @@
 # Design Doc: Engineering Everything 多 Skill 拆分 v0.1
 
-> Update 2026-06-28: 本设计中的根 `SKILL.md` 和 `--layout legacy` 兼容策略已由 `docs/designs/2026-06-28-root-skill-demotion.md` 取代。当前结构为 plugin-first，运行时入口只在 `skills/*/SKILL.md`。
+> Update 2026-06-28: 本设计中的根 `SKILL.md` 和 `--layout legacy` 兼容策略已由 `.evozeus-wrapper/docs/designs/2026-06-28-root-skill-demotion.md` 取代。当前结构为 plugin-first，运行时入口只在 `skills/*/SKILL.md`。
 
 ## TLDR
 

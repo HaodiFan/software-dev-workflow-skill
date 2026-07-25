@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Read the Skill dashboard
-    url: "https://github.com/HaodiFan/engineering-everything/tree/main/docs"
+    url: "https://github.com/HaodiFan/engineering-everything/tree/main/.evozeus-wrapper/docs"
     about: Check the current Skill status before opening feedback.

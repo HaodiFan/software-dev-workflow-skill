@@ -12,7 +12,7 @@
 
 - package version 事实源是 `.codex-plugin/plugin.json`。
 - runtime entry 只来自 `skills/using-engineering-everything/SKILL.md` 和 `skills/engineering-everything/SKILL.md`。
-- EvoZeus/source governance 进入 `WRAPPER.md`、`docs/index.md` 和 `references/self-evolution-harness.md`。
+- EvoZeus/source governance 进入 `.evozeus-wrapper/WRAPPER.md`、`.evozeus-wrapper/docs/index.md` 和 `references/self-evolution-harness.md`。
 - legacy whole-repo skill install 不再作为推荐路径。
 
 ## Direction
@@ -24,7 +24,7 @@
 1. 删除 root `SKILL.md`。
 2. 更新 `scripts/skill_doctor.py`，以 plugin manifest 为 package version source。
 3. 更新 `scripts/self_evolve.py`，检查 plugin/library contract，不再要求 root Skill。
-4. 更新 `scripts/evozeus_wrapper_preflight.py`，检查 plugin/library wrapper contract，不再要求 root status prelude。
+4. 更新 `.evozeus-wrapper/scripts/evozeus_wrapper_preflight.py`，检查 plugin/library wrapper contract，不再要求 root status prelude。
 5. 更新 README、dashboard、WRAPPER 和 changelog，把 root Skill 从当前结构中移除。
 6. 跑完整本地 gate。
 
@@ -32,7 +32,7 @@
 
 - `python3 scripts/skill_doctor.py --json`
 - `python3 scripts/self_evolve.py check --json`
-- `python3 scripts/evozeus_wrapper_preflight.py structure`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py structure`
 - `python3 scripts/eval_scenarios.py validate --json`
 - `python3 scripts/sync_references.py --check --json`
 - `python3 scripts/lesson.py validate`

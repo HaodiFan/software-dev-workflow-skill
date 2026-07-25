@@ -52,6 +52,26 @@ class InstallSafetyTests(unittest.TestCase):
         self.assertIn("using-engineering-everything", names)
         self.assertIn("engineering-everything", names)
 
+    def test_install_library_creates_canonical_symlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / "source"
+            skill = source / "skills" / "example-skill"
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text("example", encoding="utf-8")
+            destination = Path(temp) / "runtime-skills"
+
+            messages = self.install.install_library(
+                source,
+                destination,
+                delete=True,
+                dry_run=False,
+            )
+
+            installed = destination / "example-skill"
+            self.assertTrue(installed.is_symlink())
+            self.assertEqual(installed.resolve(), skill.resolve())
+            self.assertIn("linked", messages[0])
+
 
 if __name__ == "__main__":
     unittest.main()

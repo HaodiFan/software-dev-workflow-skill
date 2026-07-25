@@ -1,6 +1,13 @@
 name: EvoZeus Wrapper Preflight
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".evozeus-wrapper/**"
+      - ".codex/hooks.json"
+      - ".github/workflows/evozeus-wrapper-preflight.yml"
+  workflow_dispatch:
   issues:
     types: [opened, edited]
   pull_request:
@@ -8,7 +15,33 @@ on:
   release:
     types: [published, edited]
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "evozeus-wrapper-pages"
+  cancel-in-progress: false
+
 jobs:
+  validation:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate wrapper maintainer structure
+        run: python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py maintainer
+      - name: Report Pages deployment mode
+        env:
+          PAGES_ENABLED: ${{ vars.EVOZEUS_PAGES_ENABLED }}
+        run: |
+          if [ "$PAGES_ENABLED" = "true" ]; then
+            echo "GitHub Pages deployment is enabled for this repository."
+          else
+            echo "::notice::GitHub Pages deployment is disabled; wrapper validation passed in repository-only mode."
+          fi
+
   issue:
     if: github.event_name == 'issues'
     runs-on: ubuntu-latest
@@ -24,7 +57,7 @@ jobs:
           Path("/tmp/skill-feedback-issue.md").write_text(os.environ.get("ISSUE_BODY", ""), encoding="utf-8")
           PY
       - name: Validate issue template content
-        run: python3 scripts/evozeus_wrapper_preflight.py issue --file /tmp/skill-feedback-issue.md
+        run: python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py issue --file /tmp/skill-feedback-issue.md
 
   pull-request:
     if: github.event_name == 'pull_request'
@@ -32,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate Skill evolution PR
-        run: python3 scripts/evozeus_wrapper_preflight.py pr
+        run: python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py pr
 
   release:
     if: github.event_name == 'release'
@@ -49,4 +82,25 @@ jobs:
           Path("/tmp/release-notes.md").write_text(os.environ.get("RELEASE_BODY", ""), encoding="utf-8")
           PY
       - name: Validate release notes
-        run: python3 scripts/evozeus_wrapper_preflight.py release --tag "${{ github.event.release.tag_name }}" --release-notes /tmp/release-notes.md --skip-gh
+        run: python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py release --tag "${{ github.event.release.tag_name }}" --release-notes /tmp/release-notes.md --skip-gh
+
+  pages:
+    needs: validation
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && vars.EVOZEUS_PAGES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./.evozeus-wrapper/docs
+          destination: ./_site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./_site
+      - name: Deploy dashboard
+        id: deployment
+        uses: actions/deploy-pages@v4

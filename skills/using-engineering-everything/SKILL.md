@@ -2,8 +2,33 @@
 name: using-engineering-everything
 description: Use when starting, resuming, or switching an Engineering Everything session before selecting the kernel router or a direct engineering sub-skill.
 metadata:
-  version: 0.12.0
+  version: 0.13.0
 ---
+
+## EvoZeus-CoEvolve 状态检查
+
+本段是 Skill 入口 preflight。Agent 选中本 Skill 后、进入业务主链路前执行；它基本绑定当前 Skill，但依赖 instruction compliance，不是 native Skill invocation hook。
+
+`.evozeus-wrapper/wrapper.json` 分开记录 capability：`repo_maintenance_hook` 只在 canonical repository 作为活动项目时原生触发；`global_session_dispatcher` 在每个任务启动时聚合检查全部 wrapped Skills；本入口仍记录为 `prompt_runtime_check`。当前 Codex 没有 `SkillInvoke` 事件，不得把前两者描述成 per-Skill native invocation hook。
+
+若当前只是 runtime-only install，缺少维护资产时不要把安装副本当作事实源，回 canonical repo 处理 wrapper harness 或 Skill release。
+
+1. Skill release 状态
+   - 当前记录版本：`v0.13.0`
+   - 检查命令：`python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py version --repo HaodiFan/engineering-everything`
+   - 如果 GitHub latest release 更新：先更新 canonical repo，并确认 runtime install 仍指向 canonical repo。
+   - 如果本地版本领先 GitHub release：先完成 changelog、验证和 `vMAJOR.MINOR.PATCH` release，再把它当作稳定运行版本。
+2. Wrapper harness 状态
+   - 当前 wrapper 版本：`v0.11.2`
+   - 事实源：`.evozeus-wrapper/wrapper.json`
+   - 检查命令：在 EvoZeus-CoEvolve repo 运行 `python3 scripts/evozeus_wrapper.py harness upgrade-check --target <this-skill-repo> --json`
+   - 如果 wrapper 落后：先运行 `harness upgrade --dry-run` 生成迁移方案，再按状态检查前置、其他 wrapper 内容 append-only 的规则迁移。
+3. Source contract 状态
+   - 检查命令：`python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything`
+   - 如果 `~/.evozeus/.projects`、git origin 或 runtime install 不一致：先修复为同一个 canonical repo，再继续。
+
+解决顺序：先修 source contract，再修 wrapper harness，最后处理 Skill release；状态已确认或已记录为 runtime-only fallback 后，再进入主链路。
+
 
 # Using Engineering Everything / 启动器
 
@@ -42,8 +67,33 @@ metadata:
 
 只有用户明确要求 `/learn`、`/lesson`、`/pattern`、`/self-evolve`、升级 Skill，或确认要把纠偏沉淀为 lesson issue 时，才交给 `engineering-skill-evolution`。
 
+## EvoZeus-CoEvolve 自进化治理
+
+进入 `engineering-skill-evolution` 后，行为变更必须遵循共享 Skillware 的可追踪发布闭环：
+
+1. 先创建或关联 Skill Feedback Issue，记录问题、期望、复现场景和证据边界。
+2. 在 `.evozeus-wrapper/docs/designs/` 建立 design doc，再修改 Skill、route、reference 或 script。
+3. PR 同步更新 `.evozeus-wrapper/CHANGELOG.md`，并运行 Engineering Everything 自身验证门禁。
+4. 合并后创建 `vMAJOR.MINOR.PATCH` release tag 和 release notes，使兼容用户获得同一共享版本。
+5. wrapper harness version 由 `.evozeus-wrapper/wrapper.json` 管理；wrapper migration 只允许 append-only 更新，并记录在 `.evozeus-wrapper/docs/migrations/`。
+
+业务方法和工程路由继续由本 repo 维护。EvoZeus-CoEvolve 只增加证据、评估、版本和恢复治理。
+
 ## References
 
 - `references/route-contract.md`：route 字段契约和裁决顺序。
 - `references/output-contracts.md`：规划、执行、review、eval 输出契约。
 - `references/codex-tools.md`：Codex 工具使用和收尾边界。
+
+## EvoZeus-CoEvolve Migration Note: v0.3.0 -> v0.11.1
+
+- Wrapper harness: `v0.3.0 -> v0.11.1`
+- Layout: `scattered-v1 -> consolidated-v2`
+- Host hook registration, status prelude, manifest integration, and managed links were refreshed.
+- Target business rules were preserved.
+
+## EvoZeus-CoEvolve Recovery Note: v0.11.1 -> v0.11.2
+
+- The first v2 structure gate detected missing policy files and stopped before release.
+- CoEvolve v0.11.2 restored the policies from public templates and added canonical sub-Skill pointer validation for this plugin-first Skillware.
+- The recommended bootloader and all Engineering Everything business routes remain unchanged.

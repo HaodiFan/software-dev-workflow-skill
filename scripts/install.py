@@ -118,7 +118,7 @@ def link_tree(source: Path, dest: Path, delete: bool, dry_run: bool) -> str:
 def install_library(source: Path, dest_root: Path, delete: bool, dry_run: bool) -> list[str]:
     results: list[str] = []
     for skill_package in discover_skill_packages(source):
-        results.append(copy_tree(skill_package, dest_root / skill_package.name, delete, dry_run))
+        results.append(link_tree(skill_package, dest_root / skill_package.name, delete, dry_run))
     return results
 
 
@@ -156,7 +156,7 @@ def main() -> int:
         nargs="?",
         choices=["install", "update", "relink", "uninstall", "list"],
         default="install",
-        help="Lifecycle action. update is an alias for install; relink installs symlink pointers.",
+        help="Lifecycle action. install, update, and relink maintain canonical symlink pointers.",
     )
     parser.add_argument(
         "--target",
@@ -181,7 +181,7 @@ def main() -> int:
         action="store_true",
         help="Do not delete the existing destination before copying.",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Print actions without copying files.")
+    parser.add_argument("--dry-run", action="store_true", help="Print actions without changing files.")
     args = parser.parse_args()
 
     source = package_dir()

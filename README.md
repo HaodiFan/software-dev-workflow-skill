@@ -2,7 +2,7 @@
 
 用工程思维路由创造型任务：先判断需求、架构、执行、验证、发布和沉淀路径，再让 agent 动手。
 
-- 当前版本：`0.12.0`
+- 当前版本：`0.13.0`
 - Package ID：`engineering-everything`
 - License：`UNLICENSED`
 
@@ -203,7 +203,7 @@ python3 -m unittest discover -s tests
 
 ## Status
 
-- 当前版本：`0.12.0`
+- 当前版本：`0.13.0`
 - GitHub repo：`HaodiFan/engineering-everything`
 - Runtime layout：plugin-first, `skills/*/SKILL.md`
 - Recommended next release after root demotion：`v0.13.0`

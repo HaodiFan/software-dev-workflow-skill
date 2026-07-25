@@ -2,7 +2,7 @@
 name: engineering-architecture-design
 description: Use when choosing technical architecture, project shape, stack, data source, boundaries, deployment model, AI/Agent architecture, or scaffold strategy.
 metadata:
-  version: 0.12.0
+  version: 0.13.0
 ---
 
 # Engineering Architecture Design / 架构设计

@@ -2,7 +2,7 @@
 name: engineering-organization-systems
 description: Use when engineering an organization, company mechanism, SOP, onboarding, interview process, non-software project, WBS, estimate, workspace, knowledge base, table, or document-led operating system.
 metadata:
-  version: 0.12.0
+  version: 0.13.0
 ---
 
 # Engineering Organization Systems / 组织系统工程

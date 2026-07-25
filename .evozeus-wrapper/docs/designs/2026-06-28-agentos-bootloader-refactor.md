@@ -169,7 +169,7 @@ tests/
   - supported/experimental/not-yet harness matrix;
   - install/update/uninstall lifecycle;
   - current limitations.
-- Move maintainer dashboard content out of `docs/index.md` or make it clearly maintainer-only.
+- Move maintainer dashboard content out of `.evozeus-wrapper/docs/index.md` or make it clearly maintainer-only.
 - Add PR template Behavior Evaluation fields:
   - scenario IDs;
   - entrypoint;
@@ -177,7 +177,7 @@ tests/
   - pass/fail;
   - harness/model/date.
 - Update workflow to run real gates, not only wrapper PR preflight.
-- Update `CHANGELOG.md` Unreleased for this scope.
+- Update `.evozeus-wrapper/CHANGELOG.md` Unreleased for this scope.
 
 ### Phase 3 - Optional SessionStart hook
 
@@ -233,7 +233,7 @@ These are valid before implementation:
 - `python3 scripts/skill_doctor.py --json`
 - `python3 scripts/self_evolve.py check --json`
 - `python3 scripts/lesson.py validate`
-- `python3 scripts/evozeus_wrapper_preflight.py pr --design-doc docs/designs/2026-06-28-agentos-bootloader-refactor.md`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py pr --design-doc .evozeus-wrapper/docs/designs/2026-06-28-agentos-bootloader-refactor.md`
 
 ### Phase 0 acceptance
 
