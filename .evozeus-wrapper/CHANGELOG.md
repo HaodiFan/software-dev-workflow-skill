@@ -6,7 +6,7 @@ Wrapper harness migrations are recorded under `.evozeus-wrapper/docs/migrations/
 
 ## [Unreleased]
 
-- Publish the validated `v0.13.0` package and CoEvolve migration after the linked pull request merges; clear this coordination entry in the release commit.
+- None yet.
 
 ## [v0.13.0] - 2026-07-25
 
