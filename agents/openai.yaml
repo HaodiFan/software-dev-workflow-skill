@@ -2,7 +2,7 @@
 # 其他 agent 平台请按各自 manifest 规范另存（例如 agents/claude.yaml、agents/cursor.yaml 等）
 # version 字段必须与 ../.codex-plugin/plugin.json 保持一致；版本号在 plugin manifest 升级时同步更新。
 skill: engineering-everything
-version: 0.12.0
+version: 0.13.0
 interface:
   display_name: "Engineering Everything"
   short_description: "用工程思维路由软件、组织、企业和 SOP"

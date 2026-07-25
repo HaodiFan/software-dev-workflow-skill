@@ -2,20 +2,50 @@
 
 All notable changes to engineering-everything are recorded here.
 
-Wrapper harness migrations are recorded under `docs/wrapper-migrations/`. Add them here only when the migration also changes this Skill's release contract.
+Wrapper harness migrations are recorded under `.evozeus-wrapper/docs/migrations/`. Add them here only when the migration also changes this Skill's release contract.
 
 ## [Unreleased]
+
+- Publish the validated `v0.13.0` package and CoEvolve migration after the linked pull request merges; clear this coordination entry in the release commit.
+
+## [v0.13.0] - 2026-07-25
 
 ### Skill changes
 
 - Demoted root `SKILL.md`: runtime entrypoints now live only under `skills/*/SKILL.md`.
 - Updated package, self-evolution, and wrapper preflight gates to use `.codex-plugin/plugin.json` plus the plugin skill library as the package contract.
 - Updated wrapper/dashboard docs to describe plugin-first source governance.
+- Migrated the EvoZeus-CoEvolve harness from scattered layout `v0.3.0` to consolidated layout `v0.11.2`.
+- Kept `skills/using-engineering-everything/SKILL.md` as the recommended bootloader and preserved all direct sub-Skill entrypoints.
+- Aligned `scripts/install.py --target both` with its documented contract by creating canonical sub-Skill symlinks for Codex and Agents on fresh installs.
 
-### Version Plan
+### Feedback / Issues
 
-- Recommended next release: `v0.13.0`.
-- Rationale: package structure changes while runtime behavior remains routed through existing library skills.
+- Owner request: use Engineering Everything as the first non-project Skillware feasibility target for EvoZeus-CoEvolve.
+- Related issue: https://github.com/HaodiFan/engineering-everything/issues/17
+- Migration recovery: the first structure gate exposed missing legacy policy files and root-only runtime pointer assumptions; CoEvolve v0.11.2 fixed both without weakening validation.
+
+### Verification
+
+- `python3 scripts/sync_references.py --check --json`
+- `python3 scripts/eval_scenarios.py validate --json`
+- `python3 scripts/skill_doctor.py --json`
+- `python3 scripts/self_evolve.py check --json`
+- `python3 scripts/self_evolve.py doctor --json`
+- `python3 scripts/lesson.py validate`
+- `python3 -m unittest discover -s tests`
+- `python3 -m py_compile scripts/*.py`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py structure`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py version --repo HaodiFan/engineering-everything --current-tag v0.13.0`
+
+### Release notes
+
+- Major pre-1.0 package transition: plugin-first runtime entrypoints replace the retired root Skill entry.
+- CoEvolve adds lifecycle governance and a recommended-entry preflight; it does not change Engineering Everything routing decisions.
+- Fresh plugin-library installs now maintain one canonical source through symlinks instead of copied runtime directories.
+- Native per-Skill invocation hooks remain unavailable; the bootloader preflight depends on instruction compliance.
+- License remains `UNLICENSED`.
 
 ## [v0.12.0] - 2026-06-28
 
@@ -66,10 +96,10 @@ Wrapper harness migrations are recorded under `docs/wrapper-migrations/`. Add th
 - `python3 scripts/skill_doctor.py --json`
 - `python3 scripts/self_evolve.py check --json`
 - `python3 scripts/self_evolve.py doctor --json`
-- `python3 scripts/evozeus_wrapper_preflight.py structure`
-- `python3 scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything`
-- `python3 scripts/evozeus_wrapper_preflight.py version --repo HaodiFan/engineering-everything --current-tag v0.11.0`
-- `python3 scripts/evozeus_wrapper_preflight.py release --tag v0.11.0 --release-notes /tmp/engineering-everything-v0.11.0-release-notes.md --skip-gh`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py structure`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py version --repo HaodiFan/engineering-everything --current-tag v0.11.0`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py release --tag v0.11.0 --release-notes /tmp/engineering-everything-v0.11.0-release-notes.md --skip-gh`
 
 ## [v0.10.0] - 2026-06-27
 
@@ -88,10 +118,10 @@ Wrapper harness migrations are recorded under `docs/wrapper-migrations/`. Add th
 - `python3 scripts/skill_doctor.py --json`
 - `python3 scripts/self_evolve.py check --json`
 - `python3 scripts/self_evolve.py doctor --json`
-- `python3 scripts/evozeus_wrapper_preflight.py structure`
-- `python3 scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything`
-- `python3 scripts/evozeus_wrapper_preflight.py version --repo HaodiFan/engineering-everything --current-tag v0.10.0`
-- `python3 scripts/evozeus_wrapper_preflight.py release --tag v0.10.0 --release-notes release-notes.md --skip-gh`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py structure`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py version --repo HaodiFan/engineering-everything --current-tag v0.10.0`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py release --tag v0.10.0 --release-notes release-notes.md --skip-gh`
 
 ## [v0.9.10] - 2026-06-27
 

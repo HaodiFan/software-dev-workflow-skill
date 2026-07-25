@@ -11,7 +11,7 @@
 Make `engineering-everything` self-evolving through both layers:
 
 - Skill-native gates: `scripts/skill_doctor.py` and `scripts/self_evolve.py`.
-- Wrapper-managed gates: `.evozeus/wrapper.json`, feedback Issue template, design docs, migration log, and `scripts/evozeus_wrapper_preflight.py`.
+- Wrapper-managed gates: `.evozeus-wrapper/wrapper.json`, feedback Issue template, design docs, migration log, and `.evozeus-wrapper/scripts/evozeus_wrapper_preflight.py`.
 
 ## Direction
 
@@ -21,21 +21,21 @@ The change is append-only for Skill runtime behavior:
 
 - Preserve existing routing and reference files.
 - Append wrapper source-discovery and migration sections to root `SKILL.md`.
-- Record wrapper harness version in `.evozeus/wrapper.json`.
+- Record wrapper harness version in `.evozeus-wrapper/wrapper.json`.
 - Keep wrapper version separate from Skill release version.
 
 ## Implementation plan
 
 - Skill sections to change: append `## 自进化方法` and `## EvoZeus-wrapper` to root `SKILL.md`.
-- Files to update: wrapper-managed templates, `CHANGELOG.md`, version metadata, and migration docs.
+- Files to update: wrapper-managed templates, `.evozeus-wrapper/CHANGELOG.md`, version metadata, and migration docs.
 - Backward compatibility: existing route seeds, references, and subskill routing remain unchanged.
 
 ## Verification plan
 
-- Source discovery check: `python3 scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything`.
-- Manual checks: confirm `.evozeus/wrapper.json` has `wrapper_version: v0.2.0` and `canonical_repo: HaodiFan/engineering-everything`.
+- Source discovery check: `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything`.
+- Manual checks: confirm `.evozeus-wrapper/wrapper.json` has `wrapper_version: v0.2.0` and `canonical_repo: HaodiFan/engineering-everything`.
 - Regression cases: verify `scripts/skill_doctor.py`, `scripts/self_evolve.py check`, and `scripts/self_evolve.py doctor` still pass.
-- Preflight command: `python3 scripts/evozeus_wrapper_preflight.py structure`.
+- Preflight command: `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py structure`.
 
 ## Release plan
 

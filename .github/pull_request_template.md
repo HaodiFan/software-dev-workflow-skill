@@ -14,14 +14,14 @@
 
 ## Verification
 
-- [ ] `python3 scripts/evozeus_wrapper_preflight.py doctor --repo <OWNER/REPO>`
-- [ ] `python3 scripts/evozeus_wrapper_preflight.py structure`
-- [ ] `python3 scripts/evozeus_wrapper_preflight.py pr --design-doc <path>`
+- [ ] `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py doctor --repo <OWNER/REPO>`
+- [ ] `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py structure`
+- [ ] `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py pr --design-doc <path>`
 - [ ] Manual Skill behavior check completed
 
 ## Release Readiness
 
-- [ ] `CHANGELOG.md` updated
+- [ ] `.evozeus-wrapper/CHANGELOG.md` updated
 - [ ] Release tag planned
 - [ ] Release description drafted
 

@@ -2,7 +2,7 @@
 name: engineering-review-release
 description: Use when reviewing code, PRs, merge readiness, CI failures, release risk, rollback plans, or deciding whether a change is safe to ship.
 metadata:
-  version: 0.12.0
+  version: 0.13.0
 ---
 
 # Engineering Review Release / Review 与发布

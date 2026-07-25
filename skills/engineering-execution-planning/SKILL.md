@@ -2,7 +2,7 @@
 name: engineering-execution-planning
 description: Use when splitting a feature, writing an implementation plan, choosing worktree strategy, defining vertical slices, validation gates, or review roles before coding.
 metadata:
-  version: 0.12.0
+  version: 0.13.0
 ---
 
 # Engineering Execution Planning / 执行规划
