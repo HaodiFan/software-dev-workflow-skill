@@ -1,7 +1,7 @@
 {
   "wrapper_repo": "MetaInFLow/EvoZeus-CoEvolve",
-  "wrapper_version": "v0.11.2",
-  "applied_at": "2026-07-25",
+  "wrapper_version": "v0.11.4",
+  "applied_at": "2026-07-26",
   "canonical_repo": "HaodiFan/engineering-everything",
   "instruction_surface": "skills/using-engineering-everything/SKILL.md",
   "managed_files": [

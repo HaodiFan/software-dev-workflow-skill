@@ -19,7 +19,7 @@ metadata:
    - 如果 GitHub latest release 更新：先更新 canonical repo，并确认 runtime install 仍指向 canonical repo。
    - 如果本地版本领先 GitHub release：先完成 changelog、验证和 `vMAJOR.MINOR.PATCH` release，再把它当作稳定运行版本。
 2. Wrapper harness 状态
-   - 当前 wrapper 版本：`v0.11.2`
+   - 当前 wrapper 版本：`v0.11.4`
    - 事实源：`.evozeus-wrapper/wrapper.json`
    - 检查命令：在 EvoZeus-CoEvolve repo 运行 `python3 scripts/evozeus_wrapper.py harness upgrade-check --target <this-skill-repo> --json`
    - 如果 wrapper 落后：先运行 `harness upgrade --dry-run` 生成迁移方案，再按状态检查前置、其他 wrapper 内容 append-only 的规则迁移。
@@ -28,7 +28,6 @@ metadata:
    - 如果 `~/.evozeus/.projects`、git origin 或 runtime install 不一致：先修复为同一个 canonical repo，再继续。
 
 解决顺序：先修 source contract，再修 wrapper harness，最后处理 Skill release；状态已确认或已记录为 runtime-only fallback 后，再进入主链路。
-
 
 # Using Engineering Everything / 启动器
 
@@ -97,3 +96,10 @@ metadata:
 - The first v2 structure gate detected missing policy files and stopped before release.
 - CoEvolve v0.11.2 restored the policies from public templates and added canonical sub-Skill pointer validation for this plugin-first Skillware.
 - The recommended bootloader and all Engineering Everything business routes remain unchanged.
+
+## EvoZeus-CoEvolve Version Refresh Note: v0.11.2 -> v0.11.4
+
+- Wrapper harness: `v0.11.2 -> v0.11.4`
+- Layout: `consolidated-v2 -> consolidated-v2`
+- Host hook registration, status prelude, manifest integration, and managed links were refreshed.
+- Target business rules were preserved.
