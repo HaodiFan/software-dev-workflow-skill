@@ -6,7 +6,20 @@ Wrapper harness migrations are recorded under `.evozeus-wrapper/docs/migrations/
 
 ## [Unreleased]
 
-- None yet.
+### Skill changes
+
+- Upgraded the managed EvoZeus-CoEvolve Harness from `v0.11.4` to `v0.12.1`.
+- Added the per-invocation EvoZeus runtime identity header and staged feedback authorization contract to the wrapper-owned bootloader prelude.
+
+### Feedback / Issues
+
+- Owner-authorized batch Harness upgrade following the EvoZeus-CoEvolve `v0.12.1` release.
+
+### Verification
+
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py structure`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py identity --json`
+- `git diff --check`
 
 ## [v0.13.0] - 2026-07-25
 
