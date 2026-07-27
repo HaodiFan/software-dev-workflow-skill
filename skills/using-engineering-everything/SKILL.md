@@ -19,15 +19,21 @@ metadata:
    - 如果 GitHub latest release 更新：先更新 canonical repo，并确认 runtime install 仍指向 canonical repo。
    - 如果本地版本领先 GitHub release：先完成 changelog、验证和 `vMAJOR.MINOR.PATCH` release，再把它当作稳定运行版本。
 2. Wrapper harness 状态
-   - 当前 wrapper 版本：`v0.11.4`
+   - 当前 wrapper 版本：`v0.12.1`
    - 事实源：`.evozeus-wrapper/wrapper.json`
    - 检查命令：在 EvoZeus-CoEvolve repo 运行 `python3 scripts/evozeus_wrapper.py harness upgrade-check --target <this-skill-repo> --json`
-   - 如果 wrapper 落后：先运行 `harness upgrade --dry-run` 生成迁移方案，再按状态检查前置、其他 wrapper 内容 append-only 的规则迁移。
+   - 如果 wrapper 落后且 `upgrade-check` 未发现冲突或不兼容：报告当前与最新版本；兼容的旧 wrapper 只作为维护提醒，不阻塞业务主链路。
+   - 普通 Skill 调用不授权 Harness 升级或其他维护写入。只有用户明确请求 Harness 维护或升级后，才运行 `harness upgrade --dry-run` 生成方案；实际写入仍需单独确认。
 3. Source contract 状态
    - 检查命令：`python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything`
    - 如果 `~/.evozeus/.projects`、git origin 或 runtime install 不一致：先修复为同一个 canonical repo，再继续。
+4. 调用身份头
+   - 检查命令：`python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py identity --json`
+   - 读取 `runtime_identity.display_line`，并将其原样放在本次 Skill invocation 第一条用户可见输出的第一行。
+   - 身份头固定以 `🧙🏻‍♂️` 开始；禁止使用 HTML、自定义图片或 shortcode 替代。
+   - 同一次 invocation 的后续 commentary 和 final 不重复；下一次 invocation 再展示一次。
 
-解决顺序：先修 source contract，再修 wrapper harness，最后处理 Skill release；状态已确认或已记录为 runtime-only fallback 后，再进入主链路。
+解决顺序：Source contract 损坏、manifest 无效、迁移冲突或已确认不兼容时停止业务流程并说明原因；其他情况完成只读检查后直接进入主链路。
 
 # Using Engineering Everything / 启动器
 
@@ -100,6 +106,13 @@ metadata:
 ## EvoZeus-CoEvolve Version Refresh Note: v0.11.2 -> v0.11.4
 
 - Wrapper harness: `v0.11.2 -> v0.11.4`
+- Layout: `consolidated-v2 -> consolidated-v2`
+- Host hook registration, status prelude, manifest integration, and managed links were refreshed.
+- Target business rules were preserved.
+
+## EvoZeus-CoEvolve Version Refresh Note: v0.11.4 -> v0.12.1
+
+- Wrapper harness: `v0.11.4 -> v0.12.1`
 - Layout: `consolidated-v2 -> consolidated-v2`
 - Host hook registration, status prelude, manifest integration, and managed links were refreshed.
 - Target business rules were preserved.

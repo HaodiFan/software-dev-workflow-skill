@@ -84,6 +84,7 @@ SKILL_EVOLUTION_TERMS = [
     ["source discovery", "源头发现", "source of truth", "事实源"],
     ["~/.evozeus/.projects"],
     ["version --repo"],
+    ["identity --json", "runtime_identity.display_line"],
     ["Skill Feedback Issue", "feedback issue"],
     [TARGET_DESIGNS_DIR, "design doc"],
     [TARGET_MIGRATIONS_DIR, "wrapper migration"],
@@ -939,6 +940,181 @@ def latest_changelog_tag(changelog: str) -> str | None:
     return None
 
 
+CHANNEL_LABELS = {
+    "development": "开发版",
+    "uat": "UAT",
+    "stable": "正式版",
+}
+
+
+def classify_runtime_channel(
+    *,
+    branch: str,
+    clean: bool,
+    head: str | None,
+    skill_release: str | None,
+    latest_release_tag: str | None,
+    latest_release_commit: str | None,
+    declared_channel: str | None = None,
+) -> str:
+    if not clean:
+        return "development"
+    if declared_channel == "uat" or branch.startswith("uat/"):
+        return "uat"
+    if (
+        branch in {"", "main", "master"}
+        and head
+        and skill_release
+        and latest_release_tag == skill_release
+        and latest_release_commit == head
+    ):
+        return "stable"
+    return "development"
+
+
+def latest_release_for_identity(repo: str) -> dict[str, object]:
+    result = run_command(["gh", "release", "view", "--repo", repo, "--json", "tagName,url,publishedAt"])
+    if result.returncode != 0:
+        return {
+            "available": False,
+            "tag": None,
+            "url": None,
+            "error": (result.stderr or result.stdout).strip() or "latest release unavailable",
+        }
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return {"available": False, "tag": None, "url": None, "error": "invalid release response"}
+    tag = data.get("tagName")
+    if not isinstance(tag, str) or not tag:
+        return {"available": False, "tag": None, "url": data.get("url"), "error": "release tag missing"}
+    return {"available": True, "tag": tag, "url": data.get("url"), "error": None}
+
+
+def collect_runtime_git_facts(target: Path, release_tag: str | None) -> dict[str, object]:
+    def output(args: list[str]) -> str | None:
+        result = run_command(["git", "-C", str(target), *args])
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip()
+
+    status = output(["status", "--porcelain"])
+    return {
+        "branch": output(["branch", "--show-current"]) or "",
+        "clean": status == "" if status is not None else False,
+        "head": output(["rev-parse", "HEAD"]),
+        "release_commit": output(["rev-list", "-n", "1", release_tag]) if release_tag else None,
+        "origin_repo": git_origin_repo(target),
+    }
+
+
+def runtime_channel_reason(
+    *,
+    channel: str,
+    branch: str,
+    clean: bool,
+    skill_release: str | None,
+    latest_release_tag: str | None,
+    head: str | None,
+    latest_release_commit: str | None,
+) -> str:
+    if not clean:
+        return "dirty_worktree"
+    if channel == "uat":
+        return "declared_uat_channel"
+    if channel == "stable":
+        return "exact_release_commit"
+    if not skill_release:
+        return "skill_unpublished"
+    if not latest_release_tag:
+        return "release_unverified"
+    if branch not in {"", "main", "master"}:
+        return "development_branch"
+    if not head or not latest_release_commit or head != latest_release_commit:
+        return "head_not_release_commit"
+    return "development_fallback"
+
+
+def build_runtime_identity(
+    target: Path,
+    *,
+    latest_release: dict[str, object] | None = None,
+    git_facts: dict[str, object] | None = None,
+) -> dict[str, object]:
+    target = target.expanduser().resolve()
+    manifest = load_wrapper_manifest(target)
+    if not manifest:
+        fail(f"missing wrapper manifest: {TARGET_WRAPPER_MANIFEST}")
+
+    canonical_repo = manifest.get("canonical_repo")
+    if not isinstance(canonical_repo, str) or not GITHUB_REPO_RE.fullmatch(canonical_repo):
+        fail(f"{TARGET_WRAPPER_MANIFEST} must contain canonical_repo in OWNER/REPO format")
+    harness_version = manifest.get("wrapper_version")
+    if not isinstance(harness_version, str) or not VERSION_RE.fullmatch(harness_version):
+        fail(f"{TARGET_WRAPPER_MANIFEST} must contain wrapper_version in vMAJOR.MINOR.PATCH format")
+
+    changelog_path = target / TARGET_CHANGELOG
+    skill_release = (
+        latest_changelog_tag(changelog_path.read_text(encoding="utf-8"))
+        if changelog_path.is_file()
+        else None
+    )
+    release = latest_release if latest_release is not None else latest_release_for_identity(canonical_repo)
+    latest_release_tag = release.get("tag") if release.get("available") else None
+    if not isinstance(latest_release_tag, str):
+        latest_release_tag = None
+    facts = git_facts if git_facts is not None else collect_runtime_git_facts(target, latest_release_tag)
+    origin_repo = facts.get("origin_repo")
+    if origin_repo != canonical_repo:
+        fail(f"canonical repo origin {origin_repo or 'missing'} does not match wrapper canonical_repo {canonical_repo}")
+
+    branch = facts.get("branch") if isinstance(facts.get("branch"), str) else ""
+    clean = facts.get("clean") is True
+    head = facts.get("head") if isinstance(facts.get("head"), str) else None
+    release_commit = (
+        facts.get("release_commit") if isinstance(facts.get("release_commit"), str) else None
+    )
+    declared_channel = manifest.get("runtime_channel")
+    channel = classify_runtime_channel(
+        branch=branch,
+        clean=clean,
+        head=head,
+        skill_release=skill_release,
+        latest_release_tag=latest_release_tag,
+        latest_release_commit=release_commit,
+        declared_channel=declared_channel if isinstance(declared_channel, str) else None,
+    )
+    channel_label = CHANNEL_LABELS[channel]
+    skill_display = skill_release or "未发布"
+    canonical_url = f"https://github.com/{canonical_repo}"
+    display_line = (
+        f"🧙🏻‍♂️ [EvoZeus 自进化维护] [{canonical_repo}]({canonical_url}) · "
+        f"Skill {skill_display} · Harness {harness_version} · {channel_label}"
+    )
+    return {
+        "schema_version": "v1",
+        "managed_by": "EvoZeus-CoEvolve",
+        "icon": "🧙🏻‍♂️",
+        "canonical_repo": canonical_repo,
+        "canonical_url": canonical_url,
+        "skill_release": skill_display,
+        "harness_version": harness_version,
+        "channel": channel,
+        "channel_label": channel_label,
+        "channel_reason": runtime_channel_reason(
+            channel=channel,
+            branch=branch,
+            clean=clean,
+            skill_release=skill_release,
+            latest_release_tag=latest_release_tag,
+            head=head,
+            latest_release_commit=release_commit,
+        ),
+        "display_once_scope": "skill_invocation",
+        "display_line": display_line,
+    }
+
+
 def release_body_from_gh(tag: str, repo: str | None) -> str | None:
     cmd = ["gh", "release", "view", tag, "--json", "body", "-q", ".body"]
     if repo:
@@ -1063,6 +1239,10 @@ def main() -> int:
         help="Explicitly allow local changelog to be ahead when the change does not affect the installable artifact.",
     )
 
+    identity = sub.add_parser("identity", help="Render the EvoZeus runtime identity for this Skill invocation.")
+    identity.add_argument("--target", default=".", help="Target wrapped Skill repo path.")
+    identity.add_argument("--json", action="store_true", help="Return the versioned runtime_identity JSON object.")
+
     args = parser.parse_args()
     if args.command == "doctor":
         check_doctor(args)
@@ -1080,6 +1260,12 @@ def main() -> int:
         check_release(args)
     elif args.command == "version":
         check_version(args)
+    elif args.command == "identity":
+        runtime_identity = build_runtime_identity(Path(args.target))
+        if args.json:
+            print(json.dumps({"runtime_identity": runtime_identity}, ensure_ascii=False))
+        else:
+            print(runtime_identity["display_line"])
     return 0
 
 

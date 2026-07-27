@@ -3,13 +3,19 @@
   "strictness": "medium",
   "audit_rule": ".evozeus-wrapper/policies/audit-rule.md",
   "capture_evidence_regex": [
+    "\\[EvoZeus\\]\\[进化信号已捕获｜本地待确认｜sig_[0-9A-F]{8}\\]",
+    "LOCAL_PENDING_CONFIRMATION",
     "Skill Feedback Issue",
-    "gh issue create",
     "created issue",
     "lesson captured",
     "经验已上传",
     "自进化记录"
   ],
+  "authorization": {
+    "capture": "no_external_write",
+    "issue_submission": "explicit_confirmation_required",
+    "fix_execution": "separate_confirmation_required"
+  },
   "routing": {
     "target_skill_issue_when": [
       "domain_rule_missing",
