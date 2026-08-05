@@ -1,7 +1,7 @@
 {
   "wrapper_repo": "MetaInFLow/EvoZeus-CoEvolve",
-  "wrapper_version": "v0.12.1",
-  "applied_at": "2026-07-27",
+  "wrapper_version": "v0.15.0",
+  "applied_at": "2026-08-05",
   "canonical_repo": "HaodiFan/engineering-everything",
   "instruction_surface": "skills/using-engineering-everything/SKILL.md",
   "managed_files": [
@@ -9,6 +9,7 @@
     ".evozeus-wrapper/WRAPPER.md",
     ".evozeus-wrapper/policies/feedback-policy.json",
     ".evozeus-wrapper/policies/audit-rule.md",
+    ".evozeus-wrapper/policies/notice-policy.json",
     ".codex/hooks.json",
     ".evozeus-wrapper/hooks/evozeus_wrapper_start_check.py",
     ".evozeus-wrapper/docs/index.md",
@@ -21,7 +22,11 @@
     ".github/ISSUE_TEMPLATE/skill-feedback.yml",
     ".github/pull_request_template.md",
     ".github/workflows/evozeus-wrapper-preflight.yml",
-    ".evozeus-wrapper/scripts/evozeus_wrapper_preflight.py"
+    ".evozeus-wrapper/scripts/evozeus_wrapper_preflight.py",
+    ".evozeus-wrapper/scripts/evozeus_notice.py",
+    ".evozeus-wrapper/skills/using-evozeus-harness/SKILL.md",
+    ".evozeus-wrapper/contracts/harness-migration-contract-v1.json",
+    ".evozeus-wrapper/docs/migrations/2026-08-05-v0.12.1-to-v0.15.0.md"
   ],
   "install_links": [
     "/Users/anthonyf/.codex/skills/using-engineering-everything",
@@ -32,6 +37,26 @@
   "layout_version": 2,
   "target_wrapper_dir": ".evozeus-wrapper",
   "target_infra_dir": ".evozeus-wrapper",
+  "harness_skill_path": ".evozeus-wrapper/skills/using-evozeus-harness/SKILL.md",
+  "harness_skill_version": "v1.1.0",
+  "harness_skill_managed": true,
+  "migration_contract": {
+    "migration_protocol_version": "v1.0.0",
+    "contract_id": "evozeus-harness-migration",
+    "contract_version": "v1.0.0",
+    "path": ".evozeus-wrapper/contracts/harness-migration-contract-v1.json",
+    "sha256": "sha256:db4378edd962031bf348e75a08d930ee547cf6f5f968ceb26d52f278b51d0570"
+  },
+  "managed_blocks": [
+    {
+      "block_id": "evozeus-harness-entry",
+      "path": "skills/using-engineering-everything/SKILL.md",
+      "marker_version": "v1",
+      "begin_marker": "<!-- evozeus-harness-entry:v1 -->",
+      "end_marker": "<!-- /evozeus-harness-entry -->",
+      "sha256_lf": "078bb2020284fbd6f91c12e46a2c726e64a4f4bbdef0320f4e40adcef26d3cea"
+    }
+  ],
   "migrated_from_layout": "scattered-v1",
   "legacy_layout_dirs": [
     ".evozeus_evoinfra",

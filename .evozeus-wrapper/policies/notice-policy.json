@@ -1,0 +1,64 @@
+{
+  "schema_version": "v1",
+  "tag_style": "markdown_code",
+  "show_signal_id": false,
+  "events": {
+    "skill": {
+      "tag": "EvoZeus · 受管 Skill",
+      "show_state_label": false,
+      "details_separator": " ",
+      "states": {
+        "active": {"icon": "🧙🏻‍♂️", "label": "运行中"}
+      }
+    },
+    "lesson": {
+      "tag": "EvoZeus · Lesson",
+      "states": {
+        "pending": {"icon": "💡", "label": "待记录"},
+        "recorded": {"icon": "📝", "label": "已记录"}
+      }
+    },
+    "evolution": {
+      "tag": "EvoZeus · Evolution",
+      "states": {
+        "authorized": {"icon": "🛠️", "label": "已授权"},
+        "running": {"icon": "🛠️", "label": "进行中"},
+        "verified": {"icon": "🛠️", "label": "已验证"}
+      }
+    },
+    "maintenance": {
+      "tag": "EvoZeus · Maintenance",
+      "states": {
+        "pending": {"icon": "🔧", "label": "待授权"},
+        "running": {"icon": "🔧", "label": "进行中"},
+        "completed": {"icon": "🔧", "label": "已完成"}
+      }
+    },
+    "advisory": {
+      "tag": "EvoZeus · Advisory",
+      "states": {
+        "continue": {"icon": "⚠️", "label": "可继续"}
+      }
+    },
+    "blocked": {
+      "tag": "EvoZeus · Blocked",
+      "states": {
+        "blocked": {"icon": "🛑", "label": "已阻塞"}
+      }
+    },
+    "uat": {
+      "tag": "EvoZeus · UAT",
+      "states": {
+        "replaced": {"icon": "🧪", "label": "已覆盖"},
+        "passed": {"icon": "🧪", "label": "已通过"},
+        "failed": {"icon": "🧪", "label": "未通过"}
+      }
+    },
+    "release": {
+      "tag": "EvoZeus · Release",
+      "states": {
+        "published": {"icon": "🚀", "label": "已发布"}
+      }
+    }
+  }
+}

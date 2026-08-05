@@ -1,0 +1,184 @@
+{
+  "schema_version": "evozeus.coevolve.harness-migration-contract.v1",
+  "migration_protocol_version": "v1.0.0",
+  "contract_id": "evozeus-harness-migration",
+  "contract_version": "v1.0.0",
+  "path_roots": {
+    "artifact_path": "contracts/v1",
+    "repository_path": "repository_root",
+    "target_path": "target_repository_root"
+  },
+  "current_harness_skill_version": "v1.1.0",
+  "canonical_harness_skill_path": ".evozeus-wrapper/skills/using-evozeus-harness/SKILL.md",
+  "canonical_activation_block": {
+    "block_id": "evozeus-harness-entry",
+    "marker_version": "v1",
+    "begin_marker": "<!-- evozeus-harness-entry:v1 -->",
+    "end_marker": "<!-- /evozeus-harness-entry -->",
+    "sha256_lf": "078bb2020284fbd6f91c12e46a2c726e64a4f4bbdef0320f4e40adcef26d3cea"
+  },
+  "official_upgrade": {
+    "protocol_path": "migrations/protocols/official-upgrade-protocol-v1.json",
+    "current_closure_pointer": "migrations/history/harness-skill/current.json",
+    "current_profile_pointer": "migrations/profiles/current.json",
+    "profile_schema": "migrations/schemas/official-upgrade-profile-v1.schema.json",
+    "closure_schema": "migrations/schemas/target-closure-v1.schema.json",
+    "candidate_execution": "trusted_base_verifier_candidate_blobs_as_data"
+  },
+  "reviewed_legacy_migrations": [
+    {
+      "profile_id": "legacy-v0.14-three-section-to-canonical-v1.1",
+      "profile_version": "v1.0.0",
+      "profile_path": "migrations/profiles/legacy-v0.14-three-section-to-canonical-v1.1-v1.json",
+      "profile_schema": {
+        "path": "migrations/schemas/supervised-legacy-profile-v1.schema.json",
+        "sha256": "cd52f73b4ab943dd67b7fab1e174f95e26bedff57088ccc74cc8b30960dc2fd0"
+      },
+      "source_envelope": {
+        "path": "migrations/history/legacy-wrapper/v0.14.0/envelope.json",
+        "sha256": "d9082554c2ccb0605c8cad5512c9c085e75384eb74df5e3d84f111eaf4d3d346",
+        "schema": {
+          "path": "migrations/schemas/legacy-source-envelope-v1.schema.json",
+          "sha256": "477bafbf02581b13c7a1aba328c7976d866ad30997e29dcbffc739ab67a5947a"
+        }
+      },
+      "adapter": {
+        "path": "migrations/adapters/legacy-v0.14-three-section/adapter-v1.json",
+        "sha256": "04d410940e61a088cea5fd4d2dac926e5cc4ce63ab11adda000d254544be839f",
+        "schema": {
+          "path": "migrations/schemas/legacy-prompt-adapter-v1.schema.json",
+          "sha256": "db0e46888ebd36635aaab9752389074a3a31cf3ef6f4b7093b2c14a6c738b2a1"
+        },
+        "implementation": {
+          "root": "repository_path",
+          "path": "scripts/evozeus_harness_legacy_prompt_adapter.py",
+          "sha256": "46f3cee827c4f5bc613f16b61dd1b2017ef7e82728f25734b9835c57340521b5",
+          "entrypoint": "plan_supervised_legacy_prompt_transform"
+        },
+        "commonmark_parser": {
+          "root": "repository_path",
+          "path": "requirements-commonmark.lock",
+          "sha256": "41ab63af490a4b68f4e2af84545fb1863511cddcc75c557261ca8c8b2155b4a0",
+          "distribution": "markdown-it-py",
+          "version": "4.0.0"
+        }
+      },
+      "target_closure_pointer": {
+        "path": "migrations/history/harness-skill/current.json",
+        "pointer_id": "using-evozeus-harness-current-closure",
+        "selected_id": "using-evozeus-harness",
+        "selected_version": "v1.1.0",
+        "selected_path": "migrations/history/harness-skill/v1.1.0/closure.json"
+      },
+      "release_lineage": {
+        "source_repository": "MetaInFLow/diagnose-enterprise-ai-scenarios",
+        "source_commit": "ee2bd6e8232d14ad9070b4ee7875595e9e8e4a4f",
+        "source_tree": "801f60fa4df1a6c3a60fe44e8f0b81fe490cc5eb",
+        "target_release": "v0.15.0"
+      },
+      "release_lineage_records": [
+        ".evozeus-wrapper/docs/migrations/harness-skill-v1.0.0-to-v1.1.0.md"
+      ],
+      "applied_lineage": {
+        "role": "applied_migration_lineage",
+        "target_path": ".evozeus-wrapper/docs/migrations/reviewed-legacy-v0.14.0-to-harness-skill-v1.1.0.md",
+        "artifact": {
+          "path": "migrations/history/legacy-wrapper/v0.14.0/artifacts/generated/reviewed-legacy-v0.14.0-to-harness-skill-v1.1.0.md",
+          "sha256": "9b6176c533515b252e0f15faadadc4d8fd6323570676995b4da6db4567893986",
+          "mode": "100644"
+        },
+        "profile": "legacy-v0.14-three-section-to-canonical-v1.1@v1.0.0",
+        "source_envelope": "legacy-wrapper-v0.14-three-section@v1.0.0",
+        "wrapper_transition": "v0.14.0-to-v0.15.0",
+        "harness_transition": "absent-to-v1.1.0",
+        "instruction_transition": "reviewed-three-section-to-single-canonical-activation",
+        "retained_complement_sha256": "3822b34e173d290cd2a93ccd083f706546dcc90c2069c77d4d9b3bcf74db8b2e",
+        "rollback": "receipt_bound_snapshot_restore_on_any_failure"
+      },
+      "execution": {
+        "mode": "supervised_exact_plan",
+        "discovery_authority": false,
+        "adapter_write_authority": false,
+        "approval": "one_time_exact_operation_sha256",
+        "runtime_apply": "trusted_kernel_exact_apply"
+      }
+    }
+  ],
+  "discovery_profiles": [
+    {
+      "profile_id": "legacy-scattered-to-canonical-v1.0",
+      "from": {
+        "layout": "scattered-v1",
+        "harness_skill_version": null
+      },
+      "to": {
+        "layout": "consolidated-v2",
+        "harness_skill_version": "v1.0.0"
+      },
+      "profile_version": "v1.0.0",
+      "adapter_id": "manual-scattered-layout-gate",
+      "adapter_version": "v1.0.0",
+      "adapter_sha256": "347bb24040837eb498c8127f9593e048677758e90cbc017f4d95dd1a61b826b5",
+      "adapter_payload": {
+        "type": "manual-review-gate",
+        "discovery_candidates_are_authority": false,
+        "destructive_authority": false,
+        "trusted_preimages": []
+      },
+      "automatic": false,
+      "default_decision": "manual_migration_required",
+      "reason": "No release-bound exact historical artifact digest exists for unmarked scattered instruction blocks."
+    },
+    {
+      "profile_id": "prerelease-ambiguous-to-manual-review",
+      "from": {
+        "layout": "consolidated-v2",
+        "harness_skill_version": "v1.1.0",
+        "migration_contract_identity": "missing-or-invalid"
+      },
+      "to": null,
+      "profile_version": "v1.0.0",
+      "adapter_id": "deny-prerelease-version-collision",
+      "adapter_version": "v1.0.0",
+      "adapter_sha256": "347bb24040837eb498c8127f9593e048677758e90cbc017f4d95dd1a61b826b5",
+      "adapter_payload": {
+        "type": "manual-review-gate",
+        "discovery_candidates_are_authority": false,
+        "destructive_authority": false,
+        "trusted_preimages": []
+      },
+      "automatic": false,
+      "default_decision": "manual_migration_required",
+      "reason": "A prerelease v1.1 Harness Skill without the exact migration contract identity cannot be treated as canonical current."
+    },
+    {
+      "profile_id": "unknown-to-manual-review",
+      "from": {
+        "layout": "unknown",
+        "harness_skill_version": "unknown"
+      },
+      "to": null,
+      "profile_version": "v1.0.0",
+      "adapter_id": "deny-unknown-layout",
+      "adapter_version": "v1.0.0",
+      "adapter_sha256": "347bb24040837eb498c8127f9593e048677758e90cbc017f4d95dd1a61b826b5",
+      "adapter_payload": {
+        "type": "manual-review-gate",
+        "discovery_candidates_are_authority": false,
+        "destructive_authority": false,
+        "trusted_preimages": []
+      },
+      "automatic": false,
+      "default_decision": "manual_migration_required",
+      "reason": "Unknown layouts and unbound artifacts have no destructive authority."
+    }
+  ],
+  "authority_rules": {
+    "discovery_candidates_are_authority": false,
+    "manifest_managed_flag_is_sufficient": false,
+    "exact_preimage_hash_required": true,
+    "snapshot_required_before_write": true,
+    "post_verify_failure": "restore_snapshot",
+    "automatic_authority_source": "external_hash_bound_official_upgrade_profile"
+  }
+}

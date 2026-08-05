@@ -1,13 +1,165 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+# ruff: noqa: E402
+
+import sys
+
+
+def _bootstrap_preflight_sources() -> tuple[dict, dict]:
+    posix = __import__("posix")
+    cwd = posix.getcwd()
+    original_sys_path = tuple(sys.path)
+
+    def lexical_absolute(raw: str) -> str:
+        value = raw if raw.startswith("/") else cwd + "/" + raw
+        parts: list[str] = []
+        for part in value.split("/"):
+            if part in {"", "."}:
+                continue
+            if part == "..":
+                if parts:
+                    parts.pop()
+                continue
+            parts.append(part)
+        return "/" + "/".join(parts)
+
+    script = lexical_absolute(__file__)
+    scripts_dir = script.rsplit("/", 1)[0]
+    sidecar_root = scripts_dir.rsplit("/", 1)[0]
+    system_roots = {
+        lexical_absolute(sys.base_prefix),
+        lexical_absolute(sys.prefix),
+    }
+    sys.path[:] = [
+        item
+        for item in original_sys_path
+        if any(
+            lexical_absolute(item or cwd) == root
+            or lexical_absolute(item or cwd).startswith(root + "/")
+            for root in system_roots
+        )
+    ]
+
+    os_module = __import__("os")
+    temp_root = os_module.path.realpath(
+        os_module.environ.get("TMPDIR") or "/tmp"
+    )
+    if any(
+        temp_root == root or temp_root.startswith(root + os_module.sep)
+        for root in (os_module.path.realpath(sidecar_root),)
+    ):
+        raise RuntimeError("bytecode cache root must be outside the Harness")
+    cache = ""
+    for _attempt in range(32):
+        candidate = os_module.path.join(
+            temp_root,
+            f"evozeus-pycache-{os_module.getpid()}-{os_module.urandom(16).hex()}",
+        )
+        try:
+            os_module.mkdir(candidate, 0o700)
+        except FileExistsError:
+            continue
+        cache = candidate
+        break
+    if not cache:
+        raise RuntimeError("cannot allocate an external bytecode cache directory")
+    sys.pycache_prefix = cache
+    sys.dont_write_bytecode = True
+    atexit_module = __import__("atexit")
+
+    def remove_empty_cache() -> None:
+        try:
+            os_module.rmdir(cache)
+        except OSError:
+            pass
+
+    atexit_module.register(remove_empty_cache)
+
+    trusted_notice_source = globals().pop(
+        "_EVOZEUS_TRUSTED_NOTICE_SOURCE",
+        None,
+    )
+    trusted_notice_sha256 = globals().pop(
+        "_EVOZEUS_TRUSTED_NOTICE_SHA256",
+        None,
+    )
+    if (trusted_notice_source is None) != (trusted_notice_sha256 is None):
+        raise RuntimeError("trusted notice source identity is incomplete")
+    notice_path = scripts_dir + "/evozeus_notice.py"
+    if trusted_notice_source is not None:
+        if (
+            not isinstance(trusted_notice_source, bytes)
+            or not isinstance(trusted_notice_sha256, str)
+            or len(trusted_notice_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in trusted_notice_sha256
+            )
+        ):
+            raise RuntimeError("trusted notice source identity is invalid")
+        hashlib_module = __import__("hashlib")
+        if (
+            hashlib_module.sha256(trusted_notice_source).hexdigest()
+            != trusted_notice_sha256
+        ):
+            raise RuntimeError("trusted notice source digest changed")
+        source = trusted_notice_source
+        notice_path = "<evozeus-trusted-notice>"
+    else:
+        flags = posix.O_RDONLY | getattr(posix, "O_CLOEXEC", 0)
+        nofollow = getattr(posix, "O_NOFOLLOW", 0)
+        if nofollow == 0:
+            raise RuntimeError("trusted notice loading requires O_NOFOLLOW")
+        descriptor = posix.open(notice_path, flags | nofollow)
+        try:
+            metadata = posix.fstat(descriptor)
+            if metadata.st_mode & 0o170000 != 0o100000:
+                raise RuntimeError("trusted notice source is not a regular file")
+            source = b""
+            while len(source) < metadata.st_size:
+                chunk = posix.read(descriptor, metadata.st_size - len(source))
+                if not chunk:
+                    raise RuntimeError("trusted notice source changed while reading")
+                source += chunk
+            if posix.read(descriptor, 1):
+                raise RuntimeError("trusted notice source grew while reading")
+            final_metadata = posix.fstat(descriptor)
+            if (
+                metadata.st_dev,
+                metadata.st_ino,
+                metadata.st_mode,
+                metadata.st_size,
+                metadata.st_mtime_ns,
+                metadata.st_ctime_ns,
+            ) != (
+                final_metadata.st_dev,
+                final_metadata.st_ino,
+                final_metadata.st_mode,
+                final_metadata.st_size,
+                final_metadata.st_mtime_ns,
+                final_metadata.st_ctime_ns,
+            ):
+                raise RuntimeError("trusted notice source changed while reading")
+        finally:
+            posix.close(descriptor)
+    namespace = {"__file__": notice_path, "__name__": "_evozeus_notice"}
+    exec(compile(source, notice_path, "exec", dont_inherit=True), namespace)
+    return namespace, {"pycache_prefix": cache, "scripts_dir": scripts_dir}
+
+
+_NOTICE_SOURCE, _TRUSTED_SOURCE_RUNTIME = _bootstrap_preflight_sources()
+
 import argparse
+import hashlib
 import json
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
+
+load_notice_policy = _NOTICE_SOURCE["load_notice_policy"]
+render_notice = _NOTICE_SOURCE["render_notice"]
 
 
 GLOBAL_EVOZEUS_HOME = ".evozeus"
@@ -22,6 +174,7 @@ TARGET_CHANGELOG = f"{TARGET_EVOINFRA_DIR}/CHANGELOG.md"
 TARGET_WRAPPER_GUIDE = f"{TARGET_EVOINFRA_DIR}/WRAPPER.md"
 TARGET_FEEDBACK_POLICY = f"{TARGET_EVOINFRA_DIR}/policies/feedback-policy.json"
 TARGET_AUDIT_RULE = f"{TARGET_EVOINFRA_DIR}/policies/audit-rule.md"
+TARGET_NOTICE_POLICY = f"{TARGET_EVOINFRA_DIR}/policies/notice-policy.json"
 CODEX_HOOKS_CONFIG = ".codex/hooks.json"
 CODEX_START_HOOK_SCRIPT = f"{TARGET_EVOINFRA_DIR}/hooks/evozeus_wrapper_start_check.py"
 TARGET_DASHBOARD_INDEX = f"{TARGET_EVOINFRA_DIR}/docs/index.md"
@@ -33,6 +186,13 @@ TARGET_MIGRATIONS_DIR = f"{TARGET_EVOINFRA_DIR}/docs/migrations"
 TARGET_MIGRATIONS_README = f"{TARGET_MIGRATIONS_DIR}/README.md"
 TARGET_ONBOARDING_GUIDE = f"{TARGET_EVOINFRA_DIR}/docs/onboarding.md"
 TARGET_PREFLIGHT_SCRIPT = f"{TARGET_EVOINFRA_DIR}/scripts/evozeus_wrapper_preflight.py"
+TARGET_NOTICE_SCRIPT = f"{TARGET_EVOINFRA_DIR}/scripts/evozeus_notice.py"
+TARGET_HARNESS_SKILL = f"{TARGET_EVOINFRA_DIR}/skills/using-evozeus-harness/SKILL.md"
+TARGET_MIGRATION_CONTRACT = f"{TARGET_EVOINFRA_DIR}/contracts/harness-migration-contract-v1.json"
+HARNESS_SKILL_VERSION = "v1.1.0"
+MIGRATION_PROTOCOL_VERSION = "v1.0.0"
+HARNESS_ENTRY_BEGIN = "<!-- evozeus-harness-entry:v1 -->"
+HARNESS_ENTRY_END = "<!-- /evozeus-harness-entry -->"
 
 REQUIRED_FILES = [
     TARGET_CHANGELOG,
@@ -40,6 +200,7 @@ REQUIRED_FILES = [
     TARGET_WRAPPER_MANIFEST,
     TARGET_FEEDBACK_POLICY,
     TARGET_AUDIT_RULE,
+    TARGET_NOTICE_POLICY,
     CODEX_HOOKS_CONFIG,
     CODEX_START_HOOK_SCRIPT,
     TARGET_DASHBOARD_INDEX,
@@ -53,6 +214,9 @@ REQUIRED_FILES = [
     ".github/pull_request_template.md",
     ".github/workflows/evozeus-wrapper-preflight.yml",
     TARGET_PREFLIGHT_SCRIPT,
+    TARGET_NOTICE_SCRIPT,
+    TARGET_HARNESS_SKILL,
+    TARGET_MIGRATION_CONTRACT,
 ]
 MAINTAINER_REQUIRED_FILES = REQUIRED_FILES
 
@@ -73,25 +237,23 @@ DESIGN_TERMS = [
     ["release plan", "release", "发布"],
 ]
 
-SKILL_EVOLUTION_TERMS = [
-    ["EvoZeus-CoEvolve 状态检查", "EvoZeus-wrapper 状态检查"],
-    ["当前记录版本", "当前 Skill 版本", "Skill release"],
-    ["解决顺序", "处理顺序", "解决方法"],
-    ["自进化"],
-    ["EvoZeus-CoEvolve", "EvoZeus-wrapper"],
-    [TARGET_WRAPPER_MANIFEST],
-    ["runtime-only install"],
-    ["source discovery", "源头发现", "source of truth", "事实源"],
-    ["~/.evozeus/.projects"],
-    ["version --repo"],
-    ["identity --json", "runtime_identity.display_line"],
-    ["Skill Feedback Issue", "feedback issue"],
-    [TARGET_DESIGNS_DIR, "design doc"],
-    [TARGET_MIGRATIONS_DIR, "wrapper migration"],
-    ["append-only", "追加"],
-    ["wrapper harness version"],
-    [TARGET_CHANGELOG],
-    ["release tag", "release notes"],
+HARNESS_SKILL_TERMS = [
+    TARGET_WRAPPER_MANIFEST,
+    TARGET_NOTICE_POLICY,
+    "prompt_runtime_check",
+    "bootstrap_skill",
+    "integration.capabilities",
+    "SkillInvoke",
+    "runtime-only install",
+    "doctor --target .",
+    "identity --json",
+    "Feedback Issue",
+    "Issue-to-PR",
+    "Harness 维护",
+    "UAT",
+    "Release",
+    "rollback",
+    "普通 Skill 调用不授权",
 ]
 
 PLACEHOLDER_PATTERNS = [
@@ -102,6 +264,17 @@ PLACEHOLDER_PATTERNS = [
     r"\bTBD\b",
     r"待填写",
 ]
+
+NOTICE_REQUIRED_STATES = {
+    "skill": {"active"},
+    "lesson": {"pending", "recorded"},
+    "evolution": {"authorized", "running", "verified"},
+    "maintenance": {"pending", "running", "completed"},
+    "advisory": {"continue"},
+    "blocked": {"blocked"},
+    "uat": {"replaced", "passed", "failed"},
+    "release": {"published"},
+}
 
 VERSION_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -284,6 +457,407 @@ def detected_plugin_manifests(target: Path) -> list[str]:
     return [path for path in PLUGIN_MANIFEST_CANDIDATES if (target / path).is_file()]
 
 
+def _manifest_relative_file(target: Path, raw: object, label: str) -> Path:
+    repair_hint = (
+        "; run an approved Harness repair or migrate-layout"
+        if label == "canonical Harness Skill"
+        else ""
+    )
+    if not isinstance(raw, str) or not raw:
+        fail(f"{label} must be a non-empty relative path{repair_hint}")
+    if re.match(r"^[A-Za-z]:[\\/]", raw) or "\\" in raw:
+        fail(f"{label} must stay inside target and use POSIX relative syntax{repair_hint}")
+    relative = Path(raw)
+    if relative.is_absolute() or ".." in relative.parts:
+        fail(f"{label} must stay inside target{repair_hint}")
+    target = target.expanduser().resolve()
+    candidate = target / relative
+    cursor = candidate
+    while cursor != target:
+        if cursor.is_symlink():
+            fail(f"{label} cannot contain a symlink: {cursor.relative_to(target)}{repair_hint}")
+        cursor = cursor.parent
+    if not candidate.exists():
+        fail(f"missing {label}: {raw}{repair_hint}")
+    if not candidate.is_file():
+        fail(f"{label} must resolve to a regular file: {raw}{repair_hint}")
+    try:
+        candidate.resolve(strict=True).relative_to(target.resolve())
+    except (OSError, ValueError):
+        fail(f"{label} resolves outside target: {raw}{repair_hint}")
+    return candidate
+
+
+def check_harness_skill_contract(
+    target: Path,
+    manifest: dict,
+    *,
+    allow_legacy: bool,
+) -> str:
+    fields = ("harness_skill_path", "harness_skill_version", "harness_skill_managed")
+    present = [field for field in fields if field in manifest]
+    if not present:
+        if allow_legacy:
+            surface_rel = manifest.get("instruction_surface")
+            if not isinstance(surface_rel, str) or not surface_rel:
+                surface_rel = "SKILL.md" if (target / "SKILL.md").is_file() else "AGENTS.md"
+            surface = _manifest_relative_file(target, surface_rel, "legacy instruction_surface")
+            content = content_after_frontmatter(read_text(surface)).lstrip()
+            lines = content.splitlines()
+            has_legacy_prelude = content.startswith(STATUS_PRELUDE_HEADINGS) or bool(
+                lines
+                and lines[0].startswith("# ")
+                and "\n".join(lines[1:]).lstrip().startswith(STATUS_PRELUDE_HEADINGS)
+            )
+            if not has_legacy_prelude:
+                fail(
+                    "legacy wrapper manifest has no compatible status prelude; "
+                    "run an approved Harness repair or migrate-layout"
+                )
+            warn(
+                "legacy wrapper manifest has no canonical Harness Skill identity; "
+                "run migrate-layout before the next Harness write"
+            )
+            return "legacy_compatible"
+        fail(f"{TARGET_WRAPPER_MANIFEST} missing canonical Harness Skill identity")
+    if len(present) != len(fields):
+        fail(f"{TARGET_WRAPPER_MANIFEST} has an incomplete canonical Harness Skill identity")
+
+    path_value = manifest.get("harness_skill_path")
+    if path_value != TARGET_HARNESS_SKILL:
+        fail(f"harness_skill_path must use canonical path {TARGET_HARNESS_SKILL}")
+    if manifest.get("harness_skill_version") != HARNESS_SKILL_VERSION:
+        fail(
+            "incompatible canonical Harness Skill version: "
+            f"{manifest.get('harness_skill_version')}; expected {HARNESS_SKILL_VERSION}; "
+            "run an approved compatible Harness migration"
+        )
+    if manifest.get("harness_skill_managed") is not True:
+        fail("canonical Harness Skill must remain wrapper managed")
+    managed_files = manifest.get("managed_files")
+    if not isinstance(managed_files, list) or TARGET_HARNESS_SKILL not in managed_files:
+        fail("canonical Harness Skill must be listed in managed_files")
+
+    harness_path = _manifest_relative_file(target, path_value, "canonical Harness Skill")
+    text = read_text(harness_path)
+    frontmatter = re.match(r"\A---\r?\n(?P<body>.*?)\r?\n(?:---|\.\.\.)\r?\n", text, re.DOTALL)
+    if not frontmatter:
+        fail(
+            "canonical Harness Skill frontmatter is missing or malformed; "
+            "run an approved Harness repair or migrate-layout"
+        )
+    body = frontmatter.group("body")
+    if not re.search(r"(?m)^name:[ \t]*[\"']?using-evozeus-harness[\"']?[ \t]*\r?$", body):
+        fail(
+            "canonical Harness Skill frontmatter name must be using-evozeus-harness; "
+            "run an approved Harness repair"
+        )
+    metadata = re.search(
+        r"(?m)^metadata:[ \t]*\r?\n(?P<values>(?:^[ \t]+[^\r\n]*(?:\r?\n|$))*)",
+        body,
+    )
+    if not metadata or not re.search(
+        rf"(?m)^[ \t]+version:[ \t]*[\"']?{re.escape(HARNESS_SKILL_VERSION)}[\"']?[ \t]*\r?$",
+        metadata.group("values"),
+    ):
+        fail(
+            f"canonical Harness Skill frontmatter version must be {HARNESS_SKILL_VERSION}; "
+            "run an approved Harness repair"
+        )
+    missing_terms = [term for term in HARNESS_SKILL_TERMS if term not in text]
+    if missing_terms:
+        fail(
+            "canonical Harness Skill missing required concepts: "
+            + ", ".join(missing_terms)
+            + "; run an approved Harness repair"
+        )
+    ok(f"canonical Harness Skill contract is valid: {TARGET_HARNESS_SKILL}@{HARNESS_SKILL_VERSION}")
+    return "canonical"
+
+
+def _canonical_json_sha256(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def check_migration_contract(target: Path, manifest: dict) -> None:
+    identity = manifest.get("migration_contract")
+    if not isinstance(identity, dict):
+        fail(f"{TARGET_WRAPPER_MANIFEST} missing migration_contract identity")
+    expected_identity = {
+        "migration_protocol_version": MIGRATION_PROTOCOL_VERSION,
+        "contract_id": "evozeus-harness-migration",
+        "contract_version": "v1.0.0",
+        "path": TARGET_MIGRATION_CONTRACT,
+    }
+    mismatches = [
+        field
+        for field, expected in expected_identity.items()
+        if identity.get(field) != expected
+    ]
+    if mismatches:
+        fail(
+            f"{TARGET_WRAPPER_MANIFEST} migration_contract identity mismatch: "
+            + ", ".join(mismatches)
+        )
+    managed_files = manifest.get("managed_files")
+    if not isinstance(managed_files, list) or TARGET_MIGRATION_CONTRACT not in managed_files:
+        fail("migration contract must be listed in managed_files")
+    path = _manifest_relative_file(target, identity.get("path"), "migration contract")
+    actual_sha256 = f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
+    if identity.get("sha256") != actual_sha256:
+        fail(
+            "migration contract hash does not match wrapper manifest: "
+            f"expected={identity.get('sha256')}; actual={actual_sha256}"
+        )
+    try:
+        contract = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        fail(f"invalid migration contract: {exc}")
+    if not isinstance(contract, dict):
+        fail("migration contract must be a JSON object")
+    if contract.get("schema_version") != "evozeus.coevolve.harness-migration-contract.v1":
+        fail("migration contract schema_version is incompatible")
+    if contract.get("migration_protocol_version") != MIGRATION_PROTOCOL_VERSION:
+        fail("migration contract protocol version is incompatible")
+    if contract.get("current_harness_skill_version") != HARNESS_SKILL_VERSION:
+        fail("migration contract current Harness Skill version is incompatible")
+    if contract.get("path_roots") != {
+        "artifact_path": "contracts/v1",
+        "repository_path": "repository_root",
+        "target_path": "target_repository_root",
+    }:
+        fail("migration contract path roots are ambiguous")
+    expected_official_upgrade = {
+        "protocol_path": "migrations/protocols/official-upgrade-protocol-v1.json",
+        "current_closure_pointer": "migrations/history/harness-skill/current.json",
+        "current_profile_pointer": "migrations/profiles/current.json",
+        "profile_schema": "migrations/schemas/official-upgrade-profile-v1.schema.json",
+        "closure_schema": "migrations/schemas/target-closure-v1.schema.json",
+        "candidate_execution": "trusted_base_verifier_candidate_blobs_as_data",
+    }
+    if contract.get("official_upgrade") != expected_official_upgrade:
+        fail("migration contract official-upgrade locators are incompatible")
+    profiles = contract.get("discovery_profiles")
+    if not isinstance(profiles, list) or not profiles:
+        fail("migration contract must declare discovery profiles")
+    for profile in profiles:
+        if not isinstance(profile, dict):
+            fail("migration discovery profile must be an object")
+        fields = (
+            "profile_id",
+            "profile_version",
+            "adapter_id",
+            "adapter_version",
+            "adapter_sha256",
+            "adapter_payload",
+        )
+        if any(not profile.get(field) for field in fields):
+            fail("migration discovery profile identity is incomplete")
+        payload = profile["adapter_payload"]
+        if not isinstance(payload, dict):
+            fail(f"migration adapter payload must be an object: {profile['profile_id']}")
+        if profile["adapter_sha256"] != _canonical_json_sha256(payload):
+            fail(f"migration adapter digest mismatch: {profile['profile_id']}")
+        if (
+            profile.get("automatic") is not False
+            or profile.get("default_decision") != "manual_migration_required"
+            or payload.get("destructive_authority") is not False
+            or payload.get("discovery_candidates_are_authority") is not False
+        ):
+            fail(
+                "migration discovery profile must be manual and zero-write: "
+                f"{profile['profile_id']}"
+            )
+    expected_authority_rules = {
+        "discovery_candidates_are_authority": False,
+        "manifest_managed_flag_is_sufficient": False,
+        "exact_preimage_hash_required": True,
+        "snapshot_required_before_write": True,
+        "post_verify_failure": "restore_snapshot",
+        "automatic_authority_source": "external_hash_bound_official_upgrade_profile",
+    }
+    if contract.get("authority_rules") != expected_authority_rules:
+        fail("migration contract authority rules are incompatible")
+    ok(
+        "stable migration contract is manifest-bound: "
+        f"{TARGET_MIGRATION_CONTRACT}@{MIGRATION_PROTOCOL_VERSION}"
+    )
+
+
+def _canonical_harness_entry_block() -> str:
+    return "\n".join(
+        [
+            HARNESS_ENTRY_BEGIN,
+            "**CRITICAL — 进入业务主链路前 MUST 使用 Read 工具读取并执行",
+            f"[{TARGET_HARNESS_SKILL}]({TARGET_HARNESS_SKILL})。**",
+            HARNESS_ENTRY_END,
+        ]
+    )
+
+
+def _mask_markdown_fenced_code(text: str) -> str:
+    """Mask non-contract Markdown bytes while preserving offsets and newlines."""
+    masked: list[str] = []
+    offset = 0
+    frontmatter_end = _frontmatter_end(text)
+    fence: tuple[str, int] | None = None
+    html_block: tuple[str, re.Pattern[str] | None] | None = None
+
+    def mask_line(line: str) -> str:
+        return "".join(character if character in "\r\n" else " " for character in line)
+
+    def is_complete_html_tag(line: str) -> bool:
+        match = re.match(r"^[ ]{0,3}</?[A-Za-z][A-Za-z0-9-]*", line)
+        if not match:
+            return False
+        quote: str | None = None
+        for index in range(match.end(), len(line)):
+            character = line[index]
+            if quote:
+                if character == quote:
+                    quote = None
+                continue
+            if character in {"'", '"'}:
+                quote = character
+                continue
+            if character == ">":
+                return not line[index + 1 :].strip()
+        return False
+
+    for line in text.splitlines(keepends=True):
+        content = line.rstrip("\r\n")
+        if offset < frontmatter_end:
+            masked.append(mask_line(line))
+            offset += len(line)
+            continue
+        if fence:
+            fence_char, minimum_length = fence
+            if re.match(
+                rf"^[ ]{{0,3}}{re.escape(fence_char)}{{{minimum_length},}}[ \t]*$",
+                content,
+            ):
+                fence = None
+            masked.append(mask_line(line))
+            offset += len(line)
+            continue
+        if html_block:
+            mode, end_pattern = html_block
+            if (mode == "blank" and not content.strip()) or (
+                end_pattern is not None and end_pattern.search(content)
+            ):
+                html_block = None
+            masked.append(mask_line(line))
+            offset += len(line)
+            continue
+        fence_match = re.match(r"^[ ]{0,3}(`{3,}|~{3,})(.*)$", content)
+        if fence_match:
+            marker = fence_match.group(1)
+            fence = (marker[0], len(marker))
+            masked.append(mask_line(line))
+        elif re.fullmatch(
+            rf"(?:{re.escape(HARNESS_ENTRY_BEGIN)}|{re.escape(HARNESS_ENTRY_END)})[ \t]*",
+            content,
+        ):
+            masked.append(line)
+        elif html_match := re.match(
+            r"^[ ]{0,3}<(script|pre|style|textarea)(?:[ \t>]|$)",
+            content,
+            re.IGNORECASE,
+        ):
+            end_pattern = re.compile(rf"</{html_match.group(1)}[ \t]*>", re.IGNORECASE)
+            if not end_pattern.search(content[html_match.end() :]):
+                html_block = ("pattern", end_pattern)
+            masked.append(mask_line(line))
+        elif re.match(r"^[ ]{0,3}<!--", content):
+            if "-->" not in content[content.find("<!--") + 4 :]:
+                html_block = ("pattern", re.compile(r"-->"))
+            masked.append(mask_line(line))
+        elif re.match(r"^[ ]{0,3}<\?", content):
+            if "?>" not in content[content.find("<?") + 2 :]:
+                html_block = ("pattern", re.compile(r"\?>"))
+            masked.append(mask_line(line))
+        elif re.match(r"^[ ]{0,3}<![A-Z]", content):
+            if ">" not in content[content.find("<!") + 2 :]:
+                html_block = ("pattern", re.compile(r">"))
+            masked.append(mask_line(line))
+        elif re.match(r"^[ ]{0,3}<!\[CDATA\[", content):
+            if "]]>" not in content[content.find("<![CDATA[") + 9 :]:
+                html_block = ("pattern", re.compile(r"\]\]>"))
+            masked.append(mask_line(line))
+        elif re.match(
+            r"^[ ]{0,3}</?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[ \t/>]|$)",
+            content,
+            re.IGNORECASE,
+        ) or is_complete_html_tag(content):
+            html_block = ("blank", None)
+            masked.append(mask_line(line))
+        elif re.match(r"^(?: {4,}|\t)", content):
+            masked.append(mask_line(line))
+        else:
+            masked.append(line)
+        offset += len(line)
+    return "".join(masked)
+
+
+def check_harness_entry_contract(target: Path, manifest: dict) -> None:
+    if manifest.get("harness_skill_path") != TARGET_HARNESS_SKILL:
+        fail(f"Harness entry manifest does not match canonical path {TARGET_HARNESS_SKILL}")
+    surface_rel = manifest.get("instruction_surface")
+    surface = _manifest_relative_file(target, surface_rel, "instruction_surface")
+    text = read_text(surface).replace("\r\n", "\n")
+    visible = _mask_markdown_fenced_code(text)
+    canonical_block = _canonical_harness_entry_block()
+    entry_pattern = re.compile(
+        "^"
+        + r"\n".join(re.escape(line) for line in canonical_block.splitlines())
+        + r"[ \t]*$",
+        re.MULTILINE,
+    )
+    entries = list(entry_pattern.finditer(visible))
+    if len(entries) != 1:
+        marker_pattern = re.compile(
+            rf"^(?:(?P<begin>{re.escape(HARNESS_ENTRY_BEGIN)})|"
+            rf"(?P<end>{re.escape(HARNESS_ENTRY_END)}))[ \t]*$",
+            re.MULTILINE,
+        )
+        markers = list(marker_pattern.finditer(visible))
+        begins = [match for match in markers if match.group("begin")]
+        ends = [match for match in markers if match.group("end")]
+        if (
+            not entries
+            and len(begins) == 1
+            and len(ends) == 1
+            and begins[0].start() < ends[0].start()
+        ):
+            fail("instruction surface Harness Skill link does not match the canonical manifest path")
+        fail("instruction surface must contain exactly one canonical Harness Skill activation block")
+    start = entries[0].start()
+    end = start + len(canonical_block)
+    block = text[start:end]
+    if block != _canonical_harness_entry_block():
+        fail("instruction surface Harness Skill link does not match the canonical manifest path")
+    if len(block.splitlines()) > 8:
+        fail("instruction surface Harness Skill activation block exceeds 8 lines")
+
+    content = content_after_frontmatter(text).lstrip()
+    lines = content.splitlines()
+    at_entry = content.startswith(HARNESS_ENTRY_BEGIN)
+    after_title = bool(
+        lines
+        and lines[0].startswith("# ")
+        and "\n".join(lines[1:]).lstrip().startswith(HARNESS_ENTRY_BEGIN)
+    )
+    if not (at_entry or after_title):
+        fail("canonical Harness Skill activation block must precede the business main flow")
+    ok(f"instruction surface activates canonical Harness Skill: {surface_rel}")
+
+
 def check_integration_contract(target: Path, manifest: dict | None) -> None:
     integration = (manifest or {}).get("integration") or {}
     registration = ((manifest or {}).get("hook_registration") or {}).get("codex") or {}
@@ -291,6 +865,7 @@ def check_integration_contract(target: Path, manifest: dict | None) -> None:
     capabilities = integration.get("capabilities") or {}
     repo_hook = capabilities.get("repo_maintenance_hook") or {}
     global_dispatcher = capabilities.get("global_session_dispatcher") or {}
+    prompt_watcher = capabilities.get("global_prompt_lesson_watcher") or {}
     skill_entry = capabilities.get("skill_entry_preflight") or {}
     invocation_hook = capabilities.get("skill_invocation_hook") or {}
 
@@ -302,6 +877,14 @@ def check_integration_contract(target: Path, manifest: dict | None) -> None:
         fail("portable manifest cannot persist user-level global dispatcher installation state")
     if global_dispatcher.get("trust_status") not in {None, "not_installed"}:
         fail("portable manifest cannot persist user-level global dispatcher trust state")
+    if prompt_watcher.get("covers_skill_invocation"):
+        fail("global_prompt_lesson_watcher cannot claim per-Skill invocation coverage")
+    if prompt_watcher.get("installed") or prompt_watcher.get("native_enforced"):
+        fail("portable manifest cannot persist user-level prompt watcher installation state")
+    if prompt_watcher.get("trust_status") not in {None, "not_installed"}:
+        fail("portable manifest cannot persist user-level prompt watcher trust state")
+    if prompt_watcher and prompt_watcher.get("event") != "UserPromptSubmit":
+        fail("global_prompt_lesson_watcher event must be UserPromptSubmit")
     if skill_entry.get("native_enforced"):
         fail("skill_entry_preflight is prompt-compliance based, not native enforcement")
     if skill_entry.get("installed"):
@@ -323,18 +906,21 @@ def check_integration_contract(target: Path, manifest: dict | None) -> None:
             fail("skill_entry_preflight instruction_surface is missing or outside target")
         if not surface.is_file():
             fail("skill_entry_preflight instruction_surface is missing")
-        content = content_after_frontmatter(surface.read_text(encoding="utf-8")).lstrip()
-        lines = content.splitlines()
-        if content.startswith(STATUS_PRELUDE_HEADINGS):
-            has_status_prelude = True
+        if (manifest or {}).get("harness_skill_path") is not None:
+            check_harness_entry_contract(target, manifest or {})
         else:
-            has_status_prelude = bool(
-                lines
-                and lines[0].startswith("# ")
-                and "\n".join(lines[1:]).lstrip().startswith(STATUS_PRELUDE_HEADINGS)
-            )
-        if not has_status_prelude:
-            fail("skill_entry_preflight installation requires the status prelude")
+            content = content_after_frontmatter(surface.read_text(encoding="utf-8")).lstrip()
+            lines = content.splitlines()
+            if content.startswith(STATUS_PRELUDE_HEADINGS):
+                has_status_prelude = True
+            else:
+                has_status_prelude = bool(
+                    lines
+                    and lines[0].startswith("# ")
+                    and "\n".join(lines[1:]).lstrip().startswith(STATUS_PRELUDE_HEADINGS)
+                )
+            if not has_status_prelude:
+                fail("legacy skill_entry_preflight installation requires the status prelude")
     if registration.get("capability") == "repo_maintenance_hook":
         if registration.get("scope") != "canonical_repository":
             fail("repo_maintenance_hook registration scope must be canonical_repository")
@@ -415,14 +1001,16 @@ def check_onboarding_contract(manifest: dict | None) -> None:
     if not isinstance(children.get("supported"), bool):
         fail("onboarding.generated_child_skills.supported must be boolean")
     if children.get("supported"):
-        if children.get("attachment") != "separate_wrapper_lifecycle":
-            fail("generated child Skills must use a separate_wrapper_lifecycle attachment")
-        if children.get("trust_review") != "/hooks":
-            fail("generated child Skill hooks must require /hooks trust review")
+        if children.get("repo_harness_inherited") is not True:
+            fail("generated child Skills must inherit the parent repository Harness")
+        if children.get("attachment") != "inherited_repo_harness":
+            fail("generated child Skills must use inherited_repo_harness attachment")
+        if children.get("separate_harness_boundary") != "independent_git_repository":
+            fail("a generated child may own a separate Harness only as an independent Git repository")
         verification = children.get("verification") or ""
-        required_terms = ["structure preflight", "consumer-project smoke test"]
+        required_terms = ["repository structure preflight", "consumer-project smoke test"]
         if not all(term in verification for term in required_terms):
-            fail("generated child Skill verification must include structure preflight and consumer-project smoke test")
+            fail("generated child Skill verification must include parent repository preflight and consumer-project smoke test")
     ok("onboarding contract is complete")
 
 
@@ -532,13 +1120,304 @@ def check_terms(text: str, term_groups: list[list[str]], label: str) -> None:
         fail(f"{label} missing required concepts: {', '.join(missing)}")
 
 
+def _frontmatter_end(text: str) -> int:
+    lines = text.splitlines(keepends=True)
+    if not lines or not re.fullmatch(r"---[ \t]*", lines[0].rstrip("\r\n")):
+        return 0
+    offset = len(lines[0])
+    body_lines: list[str] = []
+    for line in lines[1:]:
+        offset += len(line)
+        if re.fullmatch(r"(?:---|\.\.\.)[ \t]*", line.rstrip("\r\n")):
+            break
+        body_lines.append(line.rstrip("\r\n"))
+    else:
+        return 0
+
+    flow_lines = list(body_lines)
+    while flow_lines and (not flow_lines[0].strip() or flow_lines[0].lstrip().startswith("#")):
+        flow_lines.pop(0)
+    while flow_lines and (not flow_lines[-1].strip() or flow_lines[-1].lstrip().startswith("#")):
+        flow_lines.pop()
+    flow_candidate = "\n".join(flow_lines).strip()
+    if flow_candidate.startswith("{") and flow_candidate.endswith("}"):
+        inner = flow_candidate[1:-1]
+        quote: str | None = None
+        quote_closes_key = False
+        escaped = False
+        comment = False
+        frames = [
+            {
+                "kind": "map",
+                "content": False,
+                "separator": False,
+                "items": 0,
+                "key_closed": False,
+                "closes_key": False,
+                "value_started": False,
+                "value_complete": False,
+                "node_properties": False,
+                "property_pending": False,
+            }
+        ]
+        valid_flow = True
+        for index, character in enumerate(inner):
+            if comment:
+                if character in "\r\n":
+                    comment = False
+                continue
+            if escaped:
+                escaped = False
+                continue
+            if quote == '"' and character == "\\":
+                escaped = True
+                continue
+            if quote:
+                if character == quote:
+                    quote = None
+                    if quote_closes_key:
+                        frames[-1]["key_closed"] = True
+                    quote_closes_key = False
+                continue
+            if character in {"'", '"'}:
+                frame = frames[-1]
+                if frame["value_complete"]:
+                    valid_flow = False
+                    break
+                frame["property_pending"] = False
+                quote = character
+                quote_closes_key = not frame["content"] and not frame["separator"]
+                if not quote_closes_key:
+                    frame["key_closed"] = False
+                frame["content"] = True
+                if frame["separator"]:
+                    frame["value_started"] = True
+                    frame["node_properties"] = False
+            elif character == "#" and (
+                not frames[-1]["property_pending"]
+                and (index == 0 or inner[index - 1].isspace() or inner[index - 1] in ",[]{}:")
+            ):
+                comment = True
+            elif character in "[{":
+                parent = frames[-1]
+                parent["property_pending"] = False
+                if parent["value_complete"] or (
+                    parent["separator"]
+                    and parent["value_started"]
+                    and not parent["node_properties"]
+                ) or (
+                    not parent["separator"]
+                    and parent["content"]
+                    and not (parent["node_properties"] and not parent["value_started"])
+                ):
+                    valid_flow = False
+                    break
+                closes_key = (
+                    not parent["separator"]
+                    and not parent["value_started"]
+                    and (not parent["content"] or parent["node_properties"])
+                )
+                parent["content"] = True
+                if parent["separator"]:
+                    parent["value_started"] = True
+                parent["node_properties"] = False
+                if not closes_key:
+                    parent["key_closed"] = False
+                frames.append(
+                    {
+                        "kind": "sequence" if character == "[" else "map",
+                        "content": False,
+                        "separator": False,
+                        "items": 0,
+                        "key_closed": False,
+                        "closes_key": closes_key,
+                        "value_started": False,
+                        "value_complete": False,
+                        "node_properties": False,
+                        "property_pending": False,
+                    }
+                )
+            elif character in "]}":
+                expected = "sequence" if character == "]" else "map"
+                if len(frames) == 1 or frames[-1]["kind"] != expected:
+                    valid_flow = False
+                    break
+                frame = frames.pop()
+                if frame["property_pending"] or (
+                    frame["node_properties"] and not frame["value_started"]
+                ):
+                    valid_flow = False
+                    break
+                if frame["content"]:
+                    frame["items"] += 1
+                if frame["closes_key"]:
+                    frames[-1]["key_closed"] = True
+                else:
+                    frames[-1]["value_complete"] = True
+                    frames[-1]["value_started"] = True
+            elif character == ",":
+                frame = frames[-1]
+                if frame["property_pending"]:
+                    continue
+                if (
+                    not frame["content"]
+                    or frame["property_pending"]
+                    or (frame["node_properties"] and not frame["value_started"])
+                ):
+                    valid_flow = False
+                    break
+                frame["items"] += 1
+                frame["content"] = False
+                frame["separator"] = False
+                frame["key_closed"] = False
+                frame["value_started"] = False
+                frame["value_complete"] = False
+                frame["node_properties"] = False
+                frame["property_pending"] = False
+            elif character == ":":
+                frame = frames[-1]
+                if frame["property_pending"]:
+                    continue
+                if frame["value_complete"]:
+                    valid_flow = False
+                    break
+                next_character = inner[index + 1 : index + 2]
+                is_separator = (
+                    not next_character
+                    or next_character.isspace()
+                    or next_character in ",[]{}"
+                    or bool(frame["key_closed"])
+                )
+                if not is_separator:
+                    frame["content"] = True
+                    frame["key_closed"] = False
+                    if frame["separator"]:
+                        frame["value_started"] = True
+                    continue
+                if frame["kind"] == "map":
+                    if not frame["content"]:
+                        valid_flow = False
+                        break
+                    if frame["separator"]:
+                        valid_flow = False
+                        break
+                    else:
+                        frame["separator"] = True
+                        frame["key_closed"] = False
+                        frame["value_started"] = False
+                        frame["value_complete"] = False
+                        frame["node_properties"] = False
+                else:
+                    if not frame["content"]:
+                        valid_flow = False
+                        break
+                    if frame["separator"]:
+                        valid_flow = False
+                        break
+                    else:
+                        frame["separator"] = True
+                        frame["key_closed"] = False
+                        frame["value_started"] = False
+                        frame["value_complete"] = False
+                        frame["node_properties"] = False
+            elif character in "&!":
+                frame = frames[-1]
+                if frame["value_complete"]:
+                    valid_flow = False
+                    break
+                if frame["property_pending"]:
+                    continue
+                if (
+                    not frame["content"]
+                    or (frame["separator"] and not frame["value_started"])
+                    or (frame["node_properties"] and not frame["value_started"])
+                ):
+                    frame["content"] = True
+                    frame["node_properties"] = True
+                    frame["property_pending"] = True
+                    frame["key_closed"] = False
+                else:
+                    frame["key_closed"] = False
+            elif not character.isspace():
+                frame = frames[-1]
+                if frame["value_complete"]:
+                    valid_flow = False
+                    break
+                if frame["property_pending"]:
+                    continue
+                frame["content"] = True
+                frame["key_closed"] = False
+                if frame["separator"]:
+                    frame["value_started"] = True
+                    frame["node_properties"] = False
+                elif frame["node_properties"]:
+                    frame["value_started"] = True
+                    frame["node_properties"] = False
+        valid_flow = valid_flow and quote is None and len(frames) == 1
+        root = frames[0]
+        if root["content"]:
+            root["items"] += 1
+        if valid_flow and (not inner.strip() or root["items"]):
+            return offset
+        return 0
+
+    def mapping_key_separator(line: str) -> int | None:
+        quote: str | None = None
+        escaped = False
+        for index, character in enumerate(line):
+            if escaped:
+                escaped = False
+                continue
+            if quote == '"' and character == "\\":
+                escaped = True
+                continue
+            if quote:
+                if character == quote:
+                    quote = None
+                continue
+            if character in {"'", '"'}:
+                quote = character
+                continue
+            if character == ":" and (index + 1 == len(line) or line[index + 1] in " \t"):
+                return index if line[:index].strip() else None
+        return None
+
+    saw_mapping_key = False
+    explicit_key = False
+    mapping_tag = False
+    allows_indentless_sequence = False
+    for line in body_lines:
+        stripped = line.strip()
+        if not stripped or line.lstrip().startswith("#"):
+            continue
+        if stripped in {"{}", "!!map {}"} and not saw_mapping_key:
+            saw_mapping_key = True
+            continue
+        if stripped == "!!map" and not saw_mapping_key:
+            mapping_tag = True
+            continue
+        if line.startswith((" ", "\t")) and (saw_mapping_key or mapping_tag):
+            continue
+        if allows_indentless_sequence and (line == "-" or line.startswith("- ")):
+            continue
+        if line.startswith("? "):
+            explicit_key = True
+            continue
+        if explicit_key and (line == ":" or line.startswith(": ")):
+            saw_mapping_key = True
+            explicit_key = False
+            continue
+        separator = mapping_key_separator(line)
+        if separator is not None:
+            saw_mapping_key = True
+            allows_indentless_sequence = not line[separator + 1 :].strip()
+            continue
+        return 0
+    return offset if saw_mapping_key and not explicit_key else 0
+
+
 def content_after_frontmatter(text: str) -> str:
-    if not text.startswith("---\n"):
-        return text
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return text
-    return text[end + len("\n---\n") :]
+    return text[_frontmatter_end(text) :]
 
 
 def check_status_prelude(skill_text: str, label: str = "SKILL.md") -> None:
@@ -553,7 +1432,13 @@ def root_entry_path(target: Path) -> Path:
     if manifest and manifest.get("instruction_surface"):
         raw_surface = manifest["instruction_surface"]
         relative = Path(raw_surface) if isinstance(raw_surface, str) else Path("")
-        if relative.is_absolute() or ".." in relative.parts:
+        if (
+            not isinstance(raw_surface, str)
+            or re.match(r"^[A-Za-z]:[\\/]", raw_surface)
+            or "\\" in raw_surface
+            or relative.is_absolute()
+            or ".." in relative.parts
+        ):
             fail(f"manifest instruction_surface must stay inside target: {raw_surface}")
         manifest_surface = target / relative
         cursor = manifest_surface
@@ -638,8 +1523,27 @@ def add_tree_files(target: Path, dirname: str, files: list[str]) -> None:
                 files.append(rel)
 
 
+def add_harness_runtime_files(files: list[str]) -> None:
+    """Add the complete file closure required by the canonical Harness contract."""
+    for path in REQUIRED_FILES:
+        if path not in files:
+            files.append(path)
+
+
 def discover_runtime_bundle(target: Path) -> dict:
     manifest = load_wrapper_manifest(target)
+    harness_runtime_path = None
+    if manifest and any(
+        field in manifest
+        for field in ("harness_skill_path", "harness_skill_version", "harness_skill_managed")
+    ):
+        if (
+            manifest.get("harness_skill_path") != TARGET_HARNESS_SKILL
+            or manifest.get("harness_skill_version") != HARNESS_SKILL_VERSION
+            or manifest.get("harness_skill_managed") is not True
+        ):
+            fail("runtime bundle has an invalid canonical Harness Skill identity")
+        harness_runtime_path = TARGET_HARNESS_SKILL
     runtime_bundle = manifest.get("runtime_bundle") if manifest else None
     if isinstance(runtime_bundle, dict):
         instruction_surface = str(runtime_bundle.get("instruction_surface") or "SKILL.md")
@@ -650,6 +1554,8 @@ def discover_runtime_bundle(target: Path) -> dict:
         ]
         if instruction_surface not in required:
             required.insert(0, instruction_surface)
+        if harness_runtime_path:
+            add_harness_runtime_files(required)
         optional = [
             normalize_relative_path(path)
             for path in runtime_bundle.get("optional_files", [])
@@ -667,6 +1573,10 @@ def discover_runtime_bundle(target: Path) -> dict:
     instruction_surface = str(entry.relative_to(target))
     required_files = [instruction_surface]
     text = entry.read_text(encoding="utf-8", errors="ignore")
+    if TARGET_HARNESS_SKILL in text:
+        harness_runtime_path = TARGET_HARNESS_SKILL
+    if harness_runtime_path:
+        add_harness_runtime_files(required_files)
     business_text = strip_wrapper_runtime_sections(text)
     for rel in referenced_runtime_files(business_text):
         if rel not in required_files:
@@ -708,9 +1618,53 @@ def check_runtime(args: argparse.Namespace) -> None:
     missing = [path for path in bundle["required_files"] if not (target / path).is_file()]
     if missing:
         fail("missing required runtime files:\n" + "\n".join(f"- {path}" for path in missing))
+    if TARGET_HARNESS_SKILL in bundle["required_files"]:
+        manifest = load_wrapper_manifest(target)
+        if manifest is None:
+            fail(f"missing wrapper manifest: {TARGET_WRAPPER_MANIFEST}")
+        check_harness_skill_contract(target, manifest, allow_legacy=False)
+        check_migration_contract(target, manifest)
+        check_harness_entry_contract(target, manifest)
     entry = target / bundle["instruction_surface"]
     check_runtime_safe_status_prelude(read_text(entry), bundle["instruction_surface"])
     ok("runtime bundle is complete")
+
+
+def check_notice_policy(target: Path) -> None:
+    path = target / TARGET_NOTICE_POLICY
+    try:
+        policy = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"invalid notice policy {TARGET_NOTICE_POLICY}: {exc}")
+    if not isinstance(policy, dict) or policy.get("schema_version") != "v1":
+        fail(f"{TARGET_NOTICE_POLICY} schema_version must be v1")
+    if policy.get("tag_style") != "markdown_code":
+        fail(f"{TARGET_NOTICE_POLICY} tag_style must be markdown_code")
+    if not isinstance(policy.get("show_signal_id"), bool):
+        fail(f"{TARGET_NOTICE_POLICY} show_signal_id must be boolean")
+    events = policy.get("events")
+    if not isinstance(events, dict):
+        fail(f"{TARGET_NOTICE_POLICY} events must be an object")
+    for kind, required_states in NOTICE_REQUIRED_STATES.items():
+        event = events.get(kind)
+        if not isinstance(event, dict) or not isinstance(event.get("tag"), str):
+            fail(f"{TARGET_NOTICE_POLICY} missing notice event: {kind}")
+        if "show_state_label" in event and not isinstance(event["show_state_label"], bool):
+            fail(f"{TARGET_NOTICE_POLICY} {kind} show_state_label must be boolean")
+        if "details_separator" in event and not isinstance(event["details_separator"], str):
+            fail(f"{TARGET_NOTICE_POLICY} {kind} details_separator must be a string")
+        states = event.get("states")
+        if not isinstance(states, dict) or not required_states.issubset(states):
+            missing = sorted(required_states - set(states or {}))
+            fail(f"{TARGET_NOTICE_POLICY} {kind} missing states: {', '.join(missing)}")
+        for state in required_states:
+            visual = states[state]
+            if not isinstance(visual, dict) or not all(
+                isinstance(visual.get(field), str) and visual[field].strip()
+                for field in ("icon", "label")
+            ):
+                fail(f"{TARGET_NOTICE_POLICY} {kind}/{state} must define icon and label")
+    ok("notice policy satisfies the target-Skill visual contract")
 
 
 def check_maintainer(args: argparse.Namespace) -> None:
@@ -719,17 +1673,15 @@ def check_maintainer(args: argparse.Namespace) -> None:
     if missing:
         fail("missing required maintainer wrapper files:\n" + "\n".join(f"- {path}" for path in missing))
     manifest = load_wrapper_manifest(target)
+    if manifest is None:
+        fail(f"missing wrapper manifest: {TARGET_WRAPPER_MANIFEST}")
+    check_harness_skill_contract(target, manifest, allow_legacy=False)
+    check_migration_contract(target, manifest)
+    check_harness_entry_contract(target, manifest)
+    check_notice_policy(target)
     check_onboarding_contract(manifest)
     check_dashboard_contract(manifest)
     check_integration_contract(target, manifest)
-    entry = root_entry_path(target)
-    entry_text = read_text(entry)
-    label = str(entry.relative_to(target))
-    check_terms(entry_text, SKILL_EVOLUTION_TERMS, f"{label} self-evolution method")
-    if label == "AGENTS.md":
-        check_agents_status_prelude(entry_text)
-    else:
-        check_status_prelude(entry_text, label)
     check_runtime(args)
     ok("maintainer bundle contains required wrapper files")
 
@@ -738,6 +1690,13 @@ def check_doctor(args: argparse.Namespace) -> None:
     target = Path(args.target).resolve()
     require_command("git")
     require_command("gh")
+
+    git_root_result = run_command(["git", "-C", str(target), "rev-parse", "--show-toplevel"])
+    if git_root_result.returncode != 0 or not git_root_result.stdout.strip():
+        fail("Evolution Harness requires an independent Git repository")
+    git_root = Path(git_root_result.stdout.strip()).resolve()
+    if git_root != target:
+        fail(f"Harness doctor must run at the Git repository root: {git_root}")
 
     auth = run_command(["gh", "auth", "status"])
     if auth.returncode != 0:
@@ -750,37 +1709,29 @@ def check_doctor(args: argparse.Namespace) -> None:
 
     manifest = load_wrapper_manifest(target)
     if manifest:
+        harness_state = check_harness_skill_contract(target, manifest, allow_legacy=True)
+        if harness_state == "canonical":
+            check_migration_contract(target, manifest)
+        if manifest.get("harness_skill_path") is not None:
+            check_harness_entry_contract(target, manifest)
         check_wrapper_managed_doctor(target, repo, manifest, args.allow_missing_repo)
         return
 
-    git_root_result = run_command(["git", "-C", str(target), "rev-parse", "--show-toplevel"])
-    if git_root_result.returncode == 0:
-        git_root = Path(git_root_result.stdout.strip())
-        remote_result = run_command(["git", "-C", str(git_root), "remote", "get-url", "origin"])
-        if remote_result.returncode == 0:
-            remote_repo = repo_from_remote(remote_result.stdout)
-            if remote_repo:
-                repo = repo or remote_repo
-                ok(f"origin GitHub repo detected: {remote_repo}")
-            else:
-                fail(f"origin remote is not a GitHub repo: {remote_result.stdout.strip()}")
-        elif not repo:
-            fail("target is a git repo but origin remote is missing; pass --repo OWNER/REPO")
-    elif not repo:
-        candidates = discover_repo_candidates(target.name)
-        if candidates:
-            repo = candidates[0]
-            ok(f"target is not a git repo; discovered candidate repo: {repo}")
+    remote_result = run_command(["git", "-C", str(git_root), "remote", "get-url", "origin"])
+    if remote_result.returncode == 0:
+        remote_repo = repo_from_remote(remote_result.stdout)
+        if remote_repo:
+            repo = repo or remote_repo
+            ok(f"origin GitHub repo detected: {remote_repo}")
         else:
-            fail("target is not a git repo and no --repo was provided")
+            fail(f"origin remote is not a GitHub repo: {remote_result.stdout.strip()}")
+    else:
+        fail("target independent Git repository has no GitHub origin")
 
     if repo:
         view = run_command(["gh", "repo", "view", repo, "--json", "nameWithOwner,url,visibility"])
         if view.returncode != 0:
             detail = (view.stderr or view.stdout or "").strip()
-            if args.allow_missing_repo and is_repo_not_found(detail):
-                ok(f"GitHub repo is available to create: {repo}")
-                return
             fail(f"cannot access GitHub repo {repo}: {detail}")
         ok(f"GitHub repo accessible: {repo}")
 
@@ -814,18 +1765,13 @@ def check_wrapper_managed_doctor(
         if origin_repo != manifest_repo:
             fail(f"canonical repo origin {origin_repo} does not match wrapper canonical_repo {manifest_repo}")
         ok(f"canonical repo origin matches wrapper manifest: {origin_repo}")
-    elif allow_missing_repo:
-        warn("canonical repo has no GitHub origin yet; allowed only during pre-publish bootstrap")
     else:
-        fail("canonical repo has no GitHub origin; publish or pass --allow-missing-repo only during bootstrap")
+        fail("canonical independent Git repository has no GitHub origin")
 
     view = run_command(["gh", "repo", "view", manifest_repo, "--json", "nameWithOwner,url,visibility"])
     if view.returncode != 0:
         detail = (view.stderr or view.stdout or "").strip()
-        if allow_missing_repo and is_repo_not_found(detail):
-            ok(f"GitHub repo is available to create: {manifest_repo}")
-        else:
-            fail(f"cannot access GitHub repo {manifest_repo}: {detail}")
+        fail(f"cannot access GitHub repo {manifest_repo}: {detail}")
     else:
         ok(f"GitHub repo accessible: {manifest_repo}")
 
@@ -1087,10 +2033,18 @@ def build_runtime_identity(
     channel_label = CHANNEL_LABELS[channel]
     skill_display = skill_release or "未发布"
     canonical_url = f"https://github.com/{canonical_repo}"
-    display_line = (
-        f"🧙🏻‍♂️ [EvoZeus 自进化维护] [{canonical_repo}]({canonical_url}) · "
-        f"Skill {skill_display} · Harness {harness_version} · {channel_label}"
+    notice_policy_path = target / TARGET_NOTICE_POLICY
+    notice_policy = load_notice_policy(notice_policy_path if notice_policy_path.is_file() else None)
+    identity_notice = render_notice(
+        kind="skill",
+        state="active",
+        details=(
+            f"[{canonical_repo}]({canonical_url}) · Skill {skill_display} · "
+            f"Harness {harness_version} · `渠道：{channel_label}`"
+        ),
+        policy=notice_policy,
     )
+    display_line = identity_notice["display_text"]
     return {
         "schema_version": "v1",
         "managed_by": "EvoZeus-CoEvolve",
@@ -1112,6 +2066,7 @@ def build_runtime_identity(
         ),
         "display_once_scope": "skill_invocation",
         "display_line": display_line,
+        "notice": identity_notice,
     }
 
 
@@ -1199,7 +2154,7 @@ def main() -> int:
     doctor = sub.add_parser("doctor", help="Check local git/gh dependencies and source repo access.")
     doctor.add_argument("--target", default=".", help="Target wrapped Skill repo path.")
     doctor.add_argument("--repo", help="GitHub repo in OWNER/REPO format. Defaults to origin remote or discovered candidate.")
-    doctor.add_argument("--allow-missing-repo", action="store_true", help="Allow --repo to be absent on GitHub when bootstrapping a new repo.")
+    doctor.add_argument("--allow-missing-repo", action="store_true", help=argparse.SUPPRESS)
 
     runtime = sub.add_parser("runtime", help="Check runtime-copy runnable Skill files.")
     runtime.add_argument("--target", default=".", help="Target Skill runtime or wrapped repo path.")

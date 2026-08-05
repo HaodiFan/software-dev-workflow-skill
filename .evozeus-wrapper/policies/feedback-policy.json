@@ -3,7 +3,8 @@
   "strictness": "medium",
   "audit_rule": ".evozeus-wrapper/policies/audit-rule.md",
   "capture_evidence_regex": [
-    "\\[EvoZeus\\]\\[进化信号已捕获｜本地待确认｜sig_[0-9A-F]{8}\\]",
+    "EvoZeus · Lesson",
+    "待记录",
     "LOCAL_PENDING_CONFIRMATION",
     "Skill Feedback Issue",
     "created issue",
@@ -11,6 +12,8 @@
     "经验已上传",
     "自进化记录"
   ],
+  "notice_policy": ".evozeus-wrapper/policies/notice-policy.json",
+  "notice_cli": ".evozeus-wrapper/scripts/evozeus_notice.py",
   "authorization": {
     "capture": "no_external_write",
     "issue_submission": "explicit_confirmation_required",

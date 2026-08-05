@@ -8,6 +8,9 @@ Wrapper harness migrations are recorded under `.evozeus-wrapper/docs/migrations/
 
 ### Skill changes
 
+- Upgraded the managed EvoZeus-CoEvolve Harness from `v0.12.1` to `v0.15.0`.
+- Added the canonical Harness Skill, notice policy, migration contract, and wrapper notice renderer.
+- Replaced the legacy wrapper prelude with one canonical activation block while preserving the Engineering Everything business flow.
 - Upgraded the managed EvoZeus-CoEvolve Harness from `v0.11.4` to `v0.12.1`.
 - Added the per-invocation EvoZeus runtime identity header and staged feedback authorization contract to the wrapper-owned bootloader prelude.
 
@@ -17,6 +20,9 @@ Wrapper harness migrations are recorded under `.evozeus-wrapper/docs/migrations/
 
 ### Verification
 
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py structure`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything`
+- `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py runtime`
 - `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py structure`
 - `python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py identity --json`
 - `git diff --check`

@@ -5,35 +5,10 @@ metadata:
   version: 0.13.0
 ---
 
-## EvoZeus-CoEvolve 状态检查
-
-本段是 Skill 入口 preflight。Agent 选中本 Skill 后、进入业务主链路前执行；它基本绑定当前 Skill，但依赖 instruction compliance，不是 native Skill invocation hook。
-
-`.evozeus-wrapper/wrapper.json` 分开记录 capability：`repo_maintenance_hook` 只在 canonical repository 作为活动项目时原生触发；`global_session_dispatcher` 在每个任务启动时聚合检查全部 wrapped Skills；本入口仍记录为 `prompt_runtime_check`。当前 Codex 没有 `SkillInvoke` 事件，不得把前两者描述成 per-Skill native invocation hook。
-
-若当前只是 runtime-only install，缺少维护资产时不要把安装副本当作事实源，回 canonical repo 处理 wrapper harness 或 Skill release。
-
-1. Skill release 状态
-   - 当前记录版本：`v0.13.0`
-   - 检查命令：`python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py version --repo HaodiFan/engineering-everything`
-   - 如果 GitHub latest release 更新：先更新 canonical repo，并确认 runtime install 仍指向 canonical repo。
-   - 如果本地版本领先 GitHub release：先完成 changelog、验证和 `vMAJOR.MINOR.PATCH` release，再把它当作稳定运行版本。
-2. Wrapper harness 状态
-   - 当前 wrapper 版本：`v0.12.1`
-   - 事实源：`.evozeus-wrapper/wrapper.json`
-   - 检查命令：在 EvoZeus-CoEvolve repo 运行 `python3 scripts/evozeus_wrapper.py harness upgrade-check --target <this-skill-repo> --json`
-   - 如果 wrapper 落后且 `upgrade-check` 未发现冲突或不兼容：报告当前与最新版本；兼容的旧 wrapper 只作为维护提醒，不阻塞业务主链路。
-   - 普通 Skill 调用不授权 Harness 升级或其他维护写入。只有用户明确请求 Harness 维护或升级后，才运行 `harness upgrade --dry-run` 生成方案；实际写入仍需单独确认。
-3. Source contract 状态
-   - 检查命令：`python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py doctor --repo HaodiFan/engineering-everything`
-   - 如果 `~/.evozeus/.projects`、git origin 或 runtime install 不一致：先修复为同一个 canonical repo，再继续。
-4. 调用身份头
-   - 检查命令：`python3 .evozeus-wrapper/scripts/evozeus_wrapper_preflight.py identity --json`
-   - 读取 `runtime_identity.display_line`，并将其原样放在本次 Skill invocation 第一条用户可见输出的第一行。
-   - 身份头固定以 `🧙🏻‍♂️` 开始；禁止使用 HTML、自定义图片或 shortcode 替代。
-   - 同一次 invocation 的后续 commentary 和 final 不重复；下一次 invocation 再展示一次。
-
-解决顺序：Source contract 损坏、manifest 无效、迁移冲突或已确认不兼容时停止业务流程并说明原因；其他情况完成只读检查后直接进入主链路。
+<!-- evozeus-harness-entry:v1 -->
+**CRITICAL — 进入业务主链路前 MUST 使用 Read 工具读取并执行
+[.evozeus-wrapper/skills/using-evozeus-harness/SKILL.md](.evozeus-wrapper/skills/using-evozeus-harness/SKILL.md)。**
+<!-- /evozeus-harness-entry -->
 
 # Using Engineering Everything / 启动器
 
@@ -89,30 +64,3 @@ metadata:
 - `references/route-contract.md`：route 字段契约和裁决顺序。
 - `references/output-contracts.md`：规划、执行、review、eval 输出契约。
 - `references/codex-tools.md`：Codex 工具使用和收尾边界。
-
-## EvoZeus-CoEvolve Migration Note: v0.3.0 -> v0.11.1
-
-- Wrapper harness: `v0.3.0 -> v0.11.1`
-- Layout: `scattered-v1 -> consolidated-v2`
-- Host hook registration, status prelude, manifest integration, and managed links were refreshed.
-- Target business rules were preserved.
-
-## EvoZeus-CoEvolve Recovery Note: v0.11.1 -> v0.11.2
-
-- The first v2 structure gate detected missing policy files and stopped before release.
-- CoEvolve v0.11.2 restored the policies from public templates and added canonical sub-Skill pointer validation for this plugin-first Skillware.
-- The recommended bootloader and all Engineering Everything business routes remain unchanged.
-
-## EvoZeus-CoEvolve Version Refresh Note: v0.11.2 -> v0.11.4
-
-- Wrapper harness: `v0.11.2 -> v0.11.4`
-- Layout: `consolidated-v2 -> consolidated-v2`
-- Host hook registration, status prelude, manifest integration, and managed links were refreshed.
-- Target business rules were preserved.
-
-## EvoZeus-CoEvolve Version Refresh Note: v0.11.4 -> v0.12.1
-
-- Wrapper harness: `v0.11.4 -> v0.12.1`
-- Layout: `consolidated-v2 -> consolidated-v2`
-- Host hook registration, status prelude, manifest integration, and managed links were refreshed.
-- Target business rules were preserved.

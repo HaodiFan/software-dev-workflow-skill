@@ -9,6 +9,7 @@
 - wrapper 状态检查由 `.codex-plugin/plugin.json`、`.evozeus-wrapper/WRAPPER.md`、`.evozeus-wrapper/docs/index.md` 和 preflight 脚本承载，不写入运行时 Skill 正文。
 - wrapper-managed files 可以按迁移方案复制或合并；如果已有本地修改，必须先做 merge review。
 - Skill release version 和 wrapper harness version 是两条版本轴，不能互相覆盖。
+- 当前 wrapper harness 为 `v0.15.0`，canonical Harness Skill 为 `v1.1.0`；运行资产由 `.evozeus-wrapper/wrapper.json` 绑定。
 
 ## 每次迁移必须记录
 
